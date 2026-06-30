@@ -177,7 +177,9 @@ Current local project values:
 
 For Ryan's friend to publish:
 
-1. Add the friend to the GitHub repo or send them a clean archive of the repo.
+1. Add the friend to the GitHub repo or send them a clean source archive
+   generated from the current `HEAD`, for example:
+   `git archive --format=zip HEAD -o /tmp/BibleMaxxing-friend-handoff-$(git rev-parse --short HEAD).zip`.
 2. The friend opens `ios/BibleMaxxing.xcodeproj` in Xcode.
 3. The friend chooses their paid Apple Developer team in Signing & Capabilities.
 4. If their team cannot use `com.ryanamiri.biblemaxxing`, choose a bundle ID

@@ -35,6 +35,8 @@ Maintain docs for:
   signing/upload handoff.
 - `app-store-friend-publishing.md` is the friend-publisher handoff for signing,
   App Store Connect ownership, public URL values, and compliance guardrails.
+- `pre-submit-completion-audit.md` is the current evidence matrix for what is
+  done, what remains manual/external, and what commands proved the claim.
 - `moderation-account-deletion.md` tracks moderation, reports, blocks, and account deletion behavior.
 - `recommendation-ingestion-evals.md` tracks recommender/worker eval scorecards,
   gates, baseline comparison semantics, and run commands.

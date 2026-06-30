@@ -269,3 +269,26 @@ Reviewed: 2026-06-30
   `8` video items returned.
 - Do not commit the review password. Provide it privately in App Store Connect
   review notes only.
+
+## Pre-Submit Completion Audit
+
+- At `2026-06-30 22:20:51 UTC`, `docs/pre-submit-completion-audit.md` was added
+  as the requirement-by-requirement handoff matrix for implemented, verified,
+  manual, and external pre-submit items.
+- Current live production counts at this checkpoint:
+  - total videos: `396`
+  - approved embeddable videos: `393`
+  - open reports: `0`
+  - active users: `8`
+  - comments: `17`
+- Public pages rechecked at this checkpoint:
+  - `/health`: healthy JSON
+  - `/privacy`: HTTP `200`
+  - `/terms`: HTTP `200`
+  - `/community`: HTTP `200`
+  - `/support`: HTTP `200`
+- The App Review account still logged in with HTTP `200`, remained non-admin,
+  had onboarding complete, and returned `8` feed videos.
+- Repo hygiene scans at this checkpoint found only placeholder/example secret
+  strings and checklist documentation references for YouTube download tooling,
+  not committed production secrets or audiovisual download/rehost code.

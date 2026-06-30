@@ -29,7 +29,9 @@ Apple references:
 
 ## Recommended Handoff
 
-1. Give the friend access to the GitHub repository.
+1. Give the friend access to the GitHub repository, or send a clean source
+   archive generated from the current `HEAD`, for example:
+   `git archive --format=zip HEAD -o /tmp/BibleMaxxing-friend-handoff-$(git rev-parse --short HEAD).zip`.
 2. The friend clones the repo and opens `ios/BibleMaxxing.xcodeproj` in Xcode.
 3. In Xcode, the friend selects their Apple developer team for signing.
 4. Use a production bundle identifier that belongs to the friend's team. If
