@@ -105,6 +105,12 @@ skips, completions, bounded watch time, and rewatches. Keep passive watch-time
 weights smaller than explicit signals like follows, likes, saves, and
 not-interested.
 
+After scoring, the feed uses a diversity-aware reranker. It should balance
+high-affinity creators with exploration across safe creators and topics, avoid
+back-to-back repeats from the same creator when alternatives exist, and cap a
+single creator's share of a fresh feed while enough eligible alternatives are
+available.
+
 Do not hard-ban landscape videos solely for format. Prefer Shorts-like,
 screen-filling videos in ranking, but allow safe and spiritually useful
 landscape videos to remain eligible.

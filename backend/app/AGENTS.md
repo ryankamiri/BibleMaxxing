@@ -24,6 +24,9 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - `services.user_interest_profile` is the per-user recommendation feedback
   loop. It should use explicit signals first, keep watch-time capped, and never
   allow engagement to override theological safety or spiritual usefulness.
+- `services.diversify_ranked_videos` is the exploration/diversity layer after
+  relevance scoring. Keep creator/topic diversity as a first-class feed
+  invariant so trusted creators can appear often without monopolizing the feed.
 - Positive feedback endpoints should validate that the target video exists
   before returning success, so the app never believes it trained the recommender
   on a missing video.

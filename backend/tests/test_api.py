@@ -106,10 +106,16 @@ def add_video(
     return video
 
 
-def feed_video_ids(token: str) -> list[str]:
-    response = client.get("/biblemaxxing/api/v1/feed?limit=20", headers=auth_headers(token))
+def feed_video_items(token: str, limit: int = 20) -> list[dict]:
+    response = client.get(
+        f"/biblemaxxing/api/v1/feed?limit={limit}", headers=auth_headers(token)
+    )
     assert response.status_code == 200, response.text
-    return [item["video"]["id"] for item in response.json()["items"] if item["type"] == "video"]
+    return [item for item in response.json()["items"] if item["type"] == "video"]
+
+
+def feed_video_ids(token: str, limit: int = 20) -> list[str]:
+    return [item["video"]["id"] for item in feed_video_items(token, limit)]
 
 
 def test_health() -> None:
@@ -325,6 +331,66 @@ def test_feed_learns_different_user_interests_from_feedback() -> None:
     assert apologetics_feed.index("apologetics-next") < apologetics_feed.index("prayer-next")
     assert "prayer-seed" not in prayer_feed
     assert "apologetics-seed" not in apologetics_feed
+
+
+def test_feed_balances_trusted_creator_relevance_with_diversity() -> None:
+    token, _ = register_user("diversity@example.com")
+
+    with TestingSessionLocal() as db:
+        philip = add_creator(db, "philip", "Philip Anthony Mitchell")
+        philip.theology_profile = {"trusted_influencer": True}
+        bryce = add_creator(db, "bryce", "Bryce Crawford")
+        bible_project = add_creator(db, "bibleproject", "BibleProject")
+        cliffe = add_creator(db, "cliffe", "Cliffe Knechtle")
+        gavin = add_creator(db, "gavin", "Gavin Ortlund")
+        tim = add_creator(db, "tim", "Tim Keller")
+        david = add_creator(db, "david", "David Platt")
+
+        for index in range(1, 8):
+            add_video(
+                db,
+                f"philip-{index}",
+                philip,
+                f"Philip sermon clip {index}",
+                ["trusted-influencer", "pastor-clips", "philip-anthony-mitchell", "sermon"],
+                spiritual_score=0.86,
+                theology_score=0.86,
+                entertainment_score=0.7,
+                freshness_score=0.7,
+            )
+
+        add_video(db, "bryce-1", bryce, "Workplace holiness", ["workplace", "discipleship"])
+        add_video(db, "bibleproject-1", bible_project, "Scripture theme", ["bible", "scripture"])
+        add_video(db, "cliffe-1", cliffe, "Apologetics answer", ["apologetics", "gospel"])
+        add_video(db, "gavin-1", gavin, "Church history context", ["theology", "church"])
+        add_video(db, "tim-1", tim, "Gospel and work", ["gospel", "workplace"])
+        add_video(db, "david-1", david, "Prayer for the nations", ["prayer", "missions"])
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/onboarding",
+            headers=auth_headers(token),
+            json={"topicSlugs": ["Pastor Clips", "Discipleship"], "intensity": "balanced"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post("/biblemaxxing/api/v1/creators/philip/follow", headers=auth_headers(token))
+        .status_code
+        == 200
+    )
+
+    items = feed_video_items(token, limit=8)
+    creator_ids = [item["video"]["creator"]["id"] for item in items]
+    topics = {topic for item in items for topic in item["video"]["topics"]}
+
+    assert len(items) == 8
+    assert creator_ids.count("philip") <= 2
+    assert len(set(creator_ids)) >= 4
+    assert all(left != right for left, right in zip(creator_ids, creator_ids[1:], strict=False))
+    assert {"workplace", "bible", "apologetics"}.issubset(topics)
+    assert "philip-1" in [item["video"]["id"] for item in items[:3]]
 
 
 def test_negative_feedback_downranks_related_videos_without_affecting_other_users() -> None:

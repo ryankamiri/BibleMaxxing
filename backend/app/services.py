@@ -1,5 +1,7 @@
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from math import ceil
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
@@ -72,6 +74,11 @@ RANK_TOPIC_SIGNAL_MIN = -0.22
 RANK_TOPIC_SIGNAL_MAX = 0.28
 RANK_CREATOR_SIGNAL_MIN = -0.14
 RANK_CREATOR_SIGNAL_MAX = 0.18
+CREATOR_REPEAT_PENALTY = 0.16
+TOPIC_REPEAT_PENALTY = 0.025
+NEW_CREATOR_BONUS = 0.08
+NEW_TOPIC_BONUS = 0.04
+MAX_CREATOR_SHARE = 0.25
 
 EXCLUDED_KEYWORDS = {
     "mormon",
@@ -477,6 +484,91 @@ def ranking_score(
     )
 
 
+def creator_cap_for_limit(limit: int) -> int:
+    return max(2, ceil(limit * MAX_CREATOR_SHARE))
+
+
+def diversity_adjusted_score(
+    video: models.Video,
+    base_score: float,
+    creator_counts: Counter[str],
+    topic_counts: Counter[str],
+) -> float:
+    topics = video_topic_set(video)
+    repeated_topic_count = sum(topic_counts[topic] for topic in topics)
+    has_new_topic = bool(topics) and any(topic_counts[topic] == 0 for topic in topics)
+
+    return (
+        base_score
+        - creator_counts[video.creator_id] * CREATOR_REPEAT_PENALTY
+        - min(repeated_topic_count, 4) * TOPIC_REPEAT_PENALTY
+        + (NEW_CREATOR_BONUS if creator_counts[video.creator_id] == 0 else 0)
+        + (NEW_TOPIC_BONUS if has_new_topic else 0)
+    )
+
+
+def creator_has_available_alternative(
+    remaining: list[tuple[models.Video, float]],
+    creator_id: str,
+    creator_counts: Counter[str],
+    creator_cap: int,
+) -> bool:
+    return any(
+        video.creator_id != creator_id and creator_counts[video.creator_id] < creator_cap
+        for video, _ in remaining
+    )
+
+
+def diversify_ranked_videos(
+    videos: list[models.Video],
+    interest_profile: UserInterestProfile,
+    limit: int,
+) -> list[models.Video]:
+    remaining = [(video, ranking_score(video, interest_profile)) for video in videos]
+    selected: list[models.Video] = []
+    creator_counts: Counter[str] = Counter()
+    topic_counts: Counter[str] = Counter()
+    creator_cap = creator_cap_for_limit(limit)
+
+    while remaining and len(selected) < limit:
+        best_index: int | None = None
+        best_score = float("-inf")
+
+        for index, (video, base_score) in enumerate(remaining):
+            has_creator_alternative = creator_has_available_alternative(
+                remaining, video.creator_id, creator_counts, creator_cap
+            )
+            if creator_counts[video.creator_id] >= creator_cap and has_creator_alternative:
+                continue
+            if selected and selected[-1].creator_id == video.creator_id and has_creator_alternative:
+                continue
+
+            candidate_score = diversity_adjusted_score(
+                video, base_score, creator_counts, topic_counts
+            )
+            if candidate_score > best_score:
+                best_index = index
+                best_score = candidate_score
+
+        if best_index is None:
+            best_index = max(
+                range(len(remaining)),
+                key=lambda index: diversity_adjusted_score(
+                    remaining[index][0],
+                    remaining[index][1],
+                    creator_counts,
+                    topic_counts,
+                ),
+            )
+
+        video, _ = remaining.pop(best_index)
+        selected.append(video)
+        creator_counts[video.creator_id] += 1
+        topic_counts.update(video_topic_set(video))
+
+    return selected
+
+
 def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Video]:
     interest_profile = user_interest_profile(db, user)
 
@@ -510,9 +602,7 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
         )
     )
 
-    return sorted(videos, key=lambda video: ranking_score(video, interest_profile), reverse=True)[
-        :limit
-    ]
+    return diversify_ranked_videos(videos, interest_profile, limit)
 
 
 def should_insert_reflection(db: Session, user: models.User) -> bool:
