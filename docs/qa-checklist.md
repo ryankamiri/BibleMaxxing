@@ -66,6 +66,7 @@ BASE_URL=https://api.tailortom.org/biblemaxxing ./scripts/smoke_api.sh
 
 ```bash
 python scripts/fetch_youtube_candidates.py "Christian shorts prayer" --max-results 10 > /tmp/biblemaxxing-candidates.json
+cd backend && BIBLEMAXXING_YOUTUBE_API_KEY=... python -m app.youtube_worker --once --query "Christian prayer shorts" --max-results 10
 curl -fsS -X POST "$BASE_URL/api/v1/admin/ingest/candidates" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
@@ -77,6 +78,7 @@ curl -fsS "$BASE_URL/api/v1/admin/videos?moderation_status=pending" \
 Pass criteria:
 
 - Real YouTube metadata is stored when credentials are present.
+- `youtube-worker` is running in production compose and logs completed cycles.
 - Fixture/sample path is available when credentials are absent.
 - Stored records include `youtube_video_id`, source URL, embed URL, channel,
   thumbnails, duration, embeddable/availability status, and moderation status.

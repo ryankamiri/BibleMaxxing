@@ -24,3 +24,4 @@ Read the root `AGENTS.md` before changing anything here.
 
 - `fetch_youtube_candidates.py` fetches YouTube Data API metadata candidates only.
 - `smoke_api.sh` walks the deployed or local API with throwaway test accounts.
+- Long-running production ingestion lives in `backend/app/youtube_worker.py`.

@@ -7,8 +7,8 @@ BibleMaxxing build.
 
 - `deployment-plan.md`: target topology, preflight, deploy, verify, and rollback
   steps for `https://api.tailortom.org/biblemaxxing`.
-- `docker-compose.biblemaxxing.example.yml`: separate BibleMaxxing API and
-  Postgres services.
+- `docker-compose.biblemaxxing.example.yml`: separate BibleMaxxing API,
+  YouTube metadata worker, and Postgres services.
 - `Caddyfile.biblemaxxing.example`: path route to insert above TailorTom's
   existing catch-all route.
 - `biblemaxxing.env.example`: secret-free environment template.
@@ -22,5 +22,7 @@ BibleMaxxing build.
 - Store real secrets only in `/opt/biblemaxxing/.env` or the deployment secret
   manager, never in git.
 - Use official YouTube embed playback only. Do not serve downloaded media.
+- Keep the `youtube-worker` on both the internal DB network and the outbound
+  `biblemaxxing-egress` network so it can reach the YouTube Data API.
 - Back up `/opt/tailortom/Caddyfile` before any live Caddy edit.
 - Do not strip `/biblemaxxing` in Caddy; the FastAPI app owns that prefix.

@@ -28,9 +28,11 @@ Do this without breaking the existing TailorTom API that already lives behind
 Use a separate BibleMaxxing Docker Compose project:
 
 - `biblemaxxing-api`: FastAPI app listening on container port `8000`.
+- `youtube-worker`: background YouTube Data API metadata ingestion loop.
 - `biblemaxxing-db`: Postgres for BibleMaxxing only.
 - `biblemaxxing-data`: named volume for that Postgres instance.
 - Shared Docker network with TailorTom Caddy for reverse proxy DNS.
+- Worker-only outbound Docker network for YouTube Data API requests.
 
 Preferred Caddy behavior:
 
@@ -93,6 +95,11 @@ Record:
    ssh tailortom 'cd /opt/biblemaxxing && docker compose ps'
    ssh tailortom 'curl -fsS http://127.0.0.1:8017/biblemaxxing/health'
    ```
+
+   The `youtube-worker` service runs one ingestion cycle immediately, then
+   sleeps for `BIBLEMAXXING_YOUTUBE_INGEST_INTERVAL_SECONDS` before the next
+   cycle. It must be attached to `biblemaxxing-egress`; the private DB network
+   is intentionally internal and cannot resolve/reach YouTube.
 
 6. Back up TailorTom Caddy before editing:
 

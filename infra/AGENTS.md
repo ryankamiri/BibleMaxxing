@@ -23,6 +23,8 @@ The safest BibleMaxxing deployment path is:
 - Keep TailorTom's existing `api.tailortom.org { reverse_proxy api:8000 }` behavior working.
 - Add a path route for BibleMaxxing under `https://api.tailortom.org/biblemaxxing`.
 - Prefer separate BibleMaxxing containers/services and a separate database/schema where practical.
+- Keep the YouTube metadata worker attached to a non-internal egress network;
+  the private DB network is intentionally unable to reach public APIs.
 
 ## Ops Practices
 

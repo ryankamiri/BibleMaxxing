@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+from app.youtube import parse_datetime, parse_duration
 
 engine = create_engine(
     "sqlite://",
@@ -60,6 +61,13 @@ def test_health() -> None:
     response = client.get("/biblemaxxing/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_youtube_metadata_parsers() -> None:
+    assert parse_duration("PT1M05S") == 65
+    assert parse_duration("PT2H3M4S") == 7384
+    assert parse_duration(None) is None
+    assert parse_datetime("2026-06-30T12:34:56Z") is not None
 
 
 def test_auth_onboarding_feed_and_interactions() -> None:
