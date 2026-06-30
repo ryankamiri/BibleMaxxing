@@ -4,6 +4,8 @@ BibleMaxxing is a personal iOS prototype intended to replace Instagram Reels wit
 
 The product goal is to help Ryan become more like Christ at work and in life by replacing compulsive scrolling with explicitly Christian short-form content, reflection, Scripture, and a feed algorithm that resists addictive loops.
 
+For the overnight build contract, read `goal.md` after this file. It contains the copy-paste `/goal` prompt and the verification checklist for the CTO agent.
+
 ## Required Agent Workflow
 
 - Before working in any folder, read the root `AGENTS.md` and every `AGENTS.md` on the path to the files you will touch.
@@ -14,6 +16,18 @@ The product goal is to help Ryan become more like Christ at work and in life by 
 - Do not commit secrets, cookies, tokens, private keys, production env files, or user credentials.
 - Do not run destructive commands against the TailorTom VPS or local machine unless Ryan explicitly asks.
 - Preserve existing user work. If a file has changes you did not make, work with them rather than reverting them.
+
+## GitHub And CTO Operating Mode
+
+- GitHub repo: `https://github.com/ryankamiri/BibleMaxxing`.
+- Local remote: `origin git@github.com:ryankamiri/BibleMaxxing.git`.
+- The CTO agent may create commits and push to `origin` when that helps checkpoint meaningful working progress, share diffs, or preserve deployable states.
+- Commit only coherent milestones. Do not commit secrets, local env files, generated junk, or broken half-edits unless the commit message clearly marks a WIP checkpoint that Ryan requested.
+- Prefer small, reviewable commits with clear messages.
+- Before pushing, inspect `git status --short` and avoid bundling unrelated user changes.
+- If a long-running `/goal` is active, keep a short progress trail through commits, docs, or a progress log so resumed agents can understand what was verified.
+- Use subagents aggressively for parallel research, implementation, QA, and deployment work, but the CTO agent owns final integration, verification, and product judgment.
+- Subagents must read all relevant `AGENTS.md` files before touching their assigned area and must update those files when their changes alter architecture or behavior.
 
 ## Current Stack Decisions
 
@@ -137,4 +151,3 @@ By 8 AM, the ideal outcome is:
 - A basic recommendation loop using watch events and explicit signals.
 - Admin moderation surfaces or at least admin endpoints/scripts.
 - Folder-level `AGENTS.md` files kept current.
-
