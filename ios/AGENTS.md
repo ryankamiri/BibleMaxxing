@@ -19,11 +19,21 @@ Read the root `AGENTS.md` before changing anything here.
   HTTPS origin/referrer.
 - Do not download, cache, store, or expose YouTube MP4/video bytes.
 - Do not implement save-to-camera-roll for YouTube-sourced videos.
-- Use Tap to Start with sound, auto-play subsequent swipes, and repeat the
-  current video when it ends.
+- Use Tap to Start with sound, auto-play subsequent swipes, tap the video
+  surface to pause/resume, double tap likes, and repeat the current video when
+  it ends.
+- Keep vertical paging simple: use SwiftUI's native scroll target paging for
+  feed swipes, not custom drag thresholds or manual index math.
+- Keep a short thumbnail warm-up mask over newly-started players so transient
+  YouTube glyphs stay hidden behind BibleMaxxing UI.
+- Keep swipe navigation user-first. Computer Use drags in Simulator can be
+  flaky, so do not treat failed Codex swipes as definitive when real device or
+  human simulator swipes work.
 - Prefer a previous/current/next player model for fast swiping.
 - Prefetch metadata and thumbnails; cue or prepare the next player where allowed.
 - Silently skip unavailable or non-embeddable videos.
+- Prefer vertical or Shorts-like videos that fill the reel frame, but keep
+  landscape videos playable when the backend ranks them as useful and safe.
 - Show subtle creator/source attribution and a way to inspect source details.
 
 ## Required UX

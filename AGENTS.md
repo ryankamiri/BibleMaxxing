@@ -74,9 +74,13 @@ Future creator uploads are allowed as an architecture consideration only. When i
 - User profiles are public for now.
 - Users can follow creators and topics.
 - Onboarding is required before the first feed. It should collect topic preferences such as prayer, anxiety, discipline, apologetics, workplace holiness, Bible study, worship, testimony, and Christian living.
-- Feed UX: Tap to Start with sound, subsequent swipes auto-play, and the
-  current video repeats when it ends.
+- Feed UX: Tap to Start with sound, subsequent native paging swipes auto-play,
+  tapping the video surface pauses/resumes, double tap likes, the current video
+  repeats when it ends, and YouTube embed chrome stays hidden behind
+  BibleMaxxing's own controls.
 - The app should maintain a previous/current/next player window where feasible.
+- Prefer vertical or Shorts-like videos that fill the reel frame, but do not
+  ban landscape videos when the content is spiritually useful and safe.
 - Double tap hearts/likes a video.
 - Saves are in-app bookmarks for YouTube videos.
 - No share feature in v1.
@@ -98,6 +102,14 @@ Priority order:
 5. Watch-time, completion, rewatch, likes, saves, skips, and not-interested signals.
 
 Watch time and rewatch are positive signals, but they must be bounded by theological safety, source quality, diversity, freshness, and anti-addiction rules.
+
+Already-seen feed videos should not be recycled into newly generated feeds. Treat
+prior impressions, watch events, likes, saves, and not-interested signals as
+seen-history exclusions before ranking candidates.
+
+Video format is a preference signal, not a hard exclusion. Boost Shorts-like,
+screen-filling candidates when metadata suggests it, while keeping landscape
+videos eligible if they score well on spiritual usefulness and safety.
 
 ## Theology And Content Fit
 

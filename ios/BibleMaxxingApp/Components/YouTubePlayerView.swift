@@ -25,6 +25,7 @@ struct YouTubePlayerView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .black
+        webView.isUserInteractionEnabled = false
         webView.navigationDelegate = context.coordinator
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.backgroundColor = .black

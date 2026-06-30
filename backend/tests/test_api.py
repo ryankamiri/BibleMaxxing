@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+from app.services import reel_fit_score
 from app.youtube import parse_datetime, parse_duration
 
 engine = create_engine(
@@ -72,9 +73,12 @@ def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
     assert "https://www.youtube.com/iframe_api" in body
     assert "origin: window.location.origin" in body
     assert "widget_referrer: window.location.href" in body
+    assert "controls: 0" in body
     assert "loop: 1" in body
     assert "playlist: videoID" in body
     assert "YT.PlayerState.ENDED" in body
+    assert "near_end_poll" in body
+    assert "pointer-events: none" in body
     assert "onPlayerError" in body
     assert "window.webkit.messageHandlers.bibleMaxxingPlayer" in body
     assert "download" not in body.lower()
@@ -88,6 +92,14 @@ def test_youtube_metadata_parsers() -> None:
     assert parse_duration("PT2H3M4S") == 7384
     assert parse_duration(None) is None
     assert parse_datetime("2026-06-30T12:34:56Z") is not None
+
+
+def test_reel_fit_prefers_shorts_without_banning_landscape() -> None:
+    vertical_hint = reel_fit_score(58, "Bible verse for today #shorts", "", [])
+    useful_landscape = reel_fit_score(164, "Morning prayer to start your day", "", [])
+
+    assert vertical_hint > useful_landscape
+    assert useful_landscape > 0
 
 
 def test_auth_onboarding_feed_and_interactions() -> None:
@@ -164,11 +176,15 @@ def test_auth_onboarding_feed_and_interactions() -> None:
 
     reflected_feed = client.get("/biblemaxxing/api/v1/feed", headers=auth_headers(token))
     assert reflected_feed.status_code == 200
-    reflection = reflected_feed.json()["items"][0]["reflection"]
-    assert reflected_feed.json()["items"][0]["type"] == "reflection"
+    reflected_items = reflected_feed.json()["items"]
+    reflection = reflected_items[0]["reflection"]
+    assert reflected_items[0]["type"] == "reflection"
     assert reflection["scripture_reference"] == "Colossians 3:23"
     assert reflection["prompt"]
     assert reflection["trigger"]
+    assert video_id not in {
+        item["video"]["id"] for item in reflected_items if item["type"] == "video"
+    }
 
     comment = client.post(
         f"/biblemaxxing/api/v1/videos/{video_id}/comments",

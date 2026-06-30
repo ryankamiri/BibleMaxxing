@@ -66,6 +66,7 @@ struct FeedView: View {
                 .environmentObject(session)
         }
     }
+
 }
 
 private struct FeedChrome: View {
@@ -145,8 +146,11 @@ private struct VideoFeedPage: View {
     let isActive: Bool
     @ObservedObject var viewModel: FeedViewModel
     @EnvironmentObject private var session: SessionStore
+    @State private var showPlayerWarmupCover = false
 
     var body: some View {
+        let shouldPlay = isActive && viewModel.didTapStart && !viewModel.isUserPaused
+
         GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 Group {
@@ -159,12 +163,18 @@ private struct VideoFeedPage: View {
                                     autoplay: isActive && viewModel.didTapStart
                                 ),
                                 isActive: isActive,
-                                shouldAutoplay: viewModel.didTapStart
+                                shouldAutoplay: shouldPlay
                             )
                             .allowsHitTesting(false)
 
                             if !viewModel.didTapStart {
                                 ThumbnailPlaceholder(url: video.thumbnailURL)
+                                    .allowsHitTesting(false)
+                            }
+
+                            if showPlayerWarmupCover {
+                                PlayerWarmupCover(url: video.thumbnailURL)
+                                    .transition(.opacity)
                                     .allowsHitTesting(false)
                             }
                         }
@@ -175,6 +185,9 @@ private struct VideoFeedPage: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()
 
+                YouTubeChromeCover()
+                    .allowsHitTesting(false)
+
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.38), .black.opacity(0.9)],
                     startPoint: .top,
@@ -182,6 +195,19 @@ private struct VideoFeedPage: View {
                 )
                 .frame(height: min(360, proxy.size.height * 0.56))
                 .allowsHitTesting(false)
+
+                if isActive && viewModel.didTapStart && viewModel.isUserPaused {
+                    PauseIndicator()
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+                        .allowsHitTesting(false)
+                }
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .onTapGesture {
+                        viewModel.handleFeedTap()
+                    }
 
                 HStack(alignment: .bottom, spacing: 12) {
                     VideoMetadataView(video: video, item: item) { slug in
@@ -216,8 +242,84 @@ private struct VideoFeedPage: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            Task { await viewModel.toggleLike(itemID: item.id) }
+        .animation(.easeOut(duration: 0.18), value: showPlayerWarmupCover)
+        .task(id: "\(item.id)-\(isActive)-\(shouldPlay)") {
+            await updatePlayerWarmupCover(shouldPlay: shouldPlay)
+        }
+    }
+
+    @MainActor
+    private func updatePlayerWarmupCover(shouldPlay: Bool) async {
+        guard shouldPlay else {
+            showPlayerWarmupCover = false
+            return
+        }
+
+        showPlayerWarmupCover = true
+        try? await Task.sleep(nanoseconds: 1_700_000_000)
+        guard !Task.isCancelled else { return }
+        showPlayerWarmupCover = false
+    }
+}
+
+private struct PauseIndicator: View {
+    var body: some View {
+        Image(systemName: "pause.fill")
+            .font(.system(size: 40, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 86, height: 86)
+            .background(.black.opacity(0.5), in: Circle())
+            .overlay(Circle().stroke(.white.opacity(0.18)))
+            .shadow(radius: 16)
+    }
+}
+
+private struct PlayerWarmupCover: View {
+    let url: URL?
+
+    var body: some View {
+        ZStack {
+            Color.black
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .overlay(Color.black.opacity(0.18))
+                default:
+                    Color.black
+                }
+            }
+        }
+        .clipped()
+    }
+}
+
+private struct YouTubeChromeCover: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.black
+                .frame(height: 104)
+
+            LinearGradient(
+                colors: [.black, .black.opacity(0.92), .black.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 88)
+
+            Spacer()
+
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.86), .black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 72)
+
+            Color.black
+                .frame(height: 34)
         }
     }
 }
@@ -320,23 +422,19 @@ private struct TapToStartOverlay: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: "speaker.wave.2.circle.fill")
-                    .font(.system(size: 56, weight: .semibold))
+            VStack(spacing: 10) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .frame(width: 76, height: 76)
+                    .background(.black.opacity(0.58), in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.2)))
+                    .shadow(radius: 14)
+
                 Text("Tap to start")
-                    .font(.title2.weight(.black))
-                Text("Sound begins after your tap. Swiping will continue playback.")
-                    .font(.footnote.weight(.medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.82))
+                    .font(.title3.weight(.black))
+                    .shadow(radius: 10)
             }
-            .padding(24)
-            .frame(maxWidth: 270)
-            .background(.black.opacity(0.66), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.white.opacity(0.22))
-            )
+            .padding(18)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
@@ -363,9 +461,6 @@ private struct ThumbnailPlaceholder: View {
                         .fill(Color.white.opacity(0.08))
                 }
             }
-            Image(systemName: "play.rectangle.fill")
-                .font(.system(size: 62))
-                .foregroundStyle(.white.opacity(0.8))
         }
         .clipped()
     }
@@ -377,25 +472,49 @@ private struct ReflectionFeedPage: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 22) {
-                Text(reflection.title)
-                    .font(.largeTitle.weight(.black))
-                Text(reflection.scriptureReference)
-                    .font(.headline.weight(.bold))
+            VStack(alignment: .leading, spacing: 18) {
+                Spacer(minLength: 110)
+
+                Text("Prayer pause")
+                    .font(.caption.weight(.black))
+                    .textCase(.uppercase)
                     .foregroundStyle(.yellow)
-                Text(reflection.body)
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.86))
-                Text(reflection.prompt)
-                    .font(.headline)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                if let trigger = reflection.trigger {
-                    Text("Paused after \(trigger).")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+
+                Text(reflection.title)
+                    .font(.system(size: 38, weight: .black, design: .rounded))
+                    .lineLimit(2)
+
+                if !reflection.scriptureReference.isEmpty {
+                    Text(reflection.scriptureReference)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(.yellow)
                 }
+
+                Text(reflection.body)
+                    .font(.title3.weight(.medium))
+                    .lineSpacing(3)
+                    .foregroundStyle(.white.opacity(0.84))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Before the next video")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.58))
+                    Text(reflection.prompt)
+                        .font(.headline.weight(.bold))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.12)))
+
+                Text(reflection.triggerText)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.44))
+
+                Spacer(minLength: 150)
             }
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -631,6 +750,24 @@ private extension Comment {
     }
 }
 
+private extension ReflectionCard {
+    var triggerText: String {
+        guard let trigger, !trigger.isEmpty else {
+            return "A short reset before the next video."
+        }
+
+        if trigger.contains("swipe") {
+            return "A short reset after quick swiping."
+        }
+
+        if trigger.contains("10") || trigger.contains("minute") {
+            return "A short reset after extended feed time."
+        }
+
+        return "A short reset before the next video."
+    }
+}
+
 private extension String {
     var cleanHandle: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
@@ -652,6 +789,7 @@ final class FeedViewModel: ObservableObject {
     @Published var items: [FeedItem] = []
     @Published var currentItemID: String?
     @Published var didTapStart = false
+    @Published var isUserPaused = false
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var commentsVideo: FeedVideo?
@@ -661,6 +799,9 @@ final class FeedViewModel: ObservableObject {
     private var hasLoaded = false
     private var sessionStartedAt = Date()
     private var reflectionInserted = false
+    private var playbackStartedAt: Date?
+    private var pendingSingleTapTask: Task<Void, Never>?
+    private var lastPlaybackTap: (id: UUID, date: Date)?
 
     func load(using apiClient: APIClient) async {
         guard !hasLoaded else { return }
@@ -697,12 +838,53 @@ final class FeedViewModel: ObservableObject {
 
     func startPlayback() async {
         didTapStart = true
+        isUserPaused = false
+        playbackStartedAt = Date()
         await recordCurrentItemStart(currentItemID)
+    }
+
+    func togglePlaybackPaused() {
+        isUserPaused.toggle()
+    }
+
+    var canAcceptPlaybackTap: Bool {
+        guard didTapStart else { return false }
+        guard let playbackStartedAt else { return true }
+        return Date().timeIntervalSince(playbackStartedAt) > 0.55
+    }
+
+    func handleFeedTap() {
+        guard canAcceptPlaybackTap else { return }
+
+        let now = Date()
+        if let lastPlaybackTap,
+           now.timeIntervalSince(lastPlaybackTap.date) < 0.28 {
+            pendingSingleTapTask?.cancel()
+            pendingSingleTapTask = nil
+            self.lastPlaybackTap = nil
+
+            if let itemID = currentItemID {
+                Task { await toggleLike(itemID: itemID) }
+            }
+            return
+        }
+
+        let tapID = UUID()
+        lastPlaybackTap = (tapID, now)
+        pendingSingleTapTask?.cancel()
+        pendingSingleTapTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard !Task.isCancelled, self.lastPlaybackTap?.id == tapID else { return }
+            self.togglePlaybackPaused()
+            self.lastPlaybackTap = nil
+            self.pendingSingleTapTask = nil
+        }
     }
 
     func recordCurrentItemStart(_ itemID: String?) async {
         guard let itemID, let itemIndex = index(for: itemID) else { return }
         let item = items[itemIndex]
+        isUserPaused = false
 
         maybeInsertReflection(after: itemID)
 

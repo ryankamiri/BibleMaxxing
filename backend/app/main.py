@@ -150,6 +150,10 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     }
 
+    iframe {
+      pointer-events: none;
+    }
+
     #fallback {
       align-items: center;
       background: #000;
@@ -212,6 +216,8 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
 
     let player = null;
     let pendingPlay = false;
+    const loopPollIntervalMs = 500;
+    const loopNearEndThresholdSeconds = 0.35;
 
     function post(type, payload) {
       const message = Object.assign({
@@ -292,11 +298,30 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
     function onPlayerStateChange(event) {
       post("player_state", { state: event.data });
       if (event.data === YT.PlayerState.ENDED || event.data === 0) {
-        post("loop", { name: "replayCurrentVideo" });
-        event.target.seekTo(0, true);
-        event.target.playVideo();
+        replayCurrentVideo(event.target, "ended_state");
       }
     }
+
+    function replayCurrentVideo(target, reason) {
+      post("loop", { name: "replayCurrentVideo", reason: reason });
+      target.seekTo(0, true);
+      target.playVideo();
+    }
+
+    window.setInterval(function() {
+      if (!player || !player.getCurrentTime || !player.getDuration) {
+        return;
+      }
+      const duration = Number(player.getDuration() || 0);
+      const currentTime = Number(player.getCurrentTime() || 0);
+      if (
+        duration > 1 &&
+        currentTime > 0 &&
+        duration - currentTime <= loopNearEndThresholdSeconds
+      ) {
+        replayCurrentVideo(player, "near_end_poll");
+      }
+    }, loopPollIntervalMs);
 
     function onAutoplayBlocked() {
       post("autoplay_blocked");

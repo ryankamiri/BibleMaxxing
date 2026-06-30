@@ -38,6 +38,36 @@ EXCLUDED_KEYWORDS = {
 }
 
 
+def reel_fit_score(
+    duration_seconds: int | None,
+    title: str,
+    description: str = "",
+    tags: list[str] | None = None,
+) -> float:
+    """Prefer Shorts-like videos without banning useful landscape content."""
+    if duration_seconds is None:
+        duration_score = 0.56
+    elif duration_seconds <= 75:
+        duration_score = 1.0
+    elif duration_seconds <= 120:
+        duration_score = 0.82
+    elif duration_seconds <= 180:
+        duration_score = 0.64
+    elif duration_seconds <= 300:
+        duration_score = 0.38
+    else:
+        duration_score = 0.18
+
+    tag_values = tags or []
+    text = f"{title} {description} {' '.join(tag_values)}".lower()
+    shorts_hint = any(
+        marker in text
+        for marker in ("#shorts", " shorts", "shorts ", "short-form", "short video")
+    )
+    hint_score = 1.0 if shorts_hint else 0.68
+    return round(duration_score * 0.78 + hint_score * 0.22, 3)
+
+
 def slugify(value: str) -> str:
     cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in value)
     return "-".join(part for part in cleaned.split("-") if part)
@@ -83,6 +113,9 @@ def upsert_youtube_candidates(
             db.flush()
 
         moderation_status = "approved" if default_approve else "pending"
+        fit_score = reel_fit_score(
+            candidate.duration_seconds, candidate.title, candidate.description, candidate.tags
+        )
         video = models.Video(
             creator_id=creator.id,
             youtube_video_id=candidate.youtube_video_id,
@@ -98,7 +131,7 @@ def upsert_youtube_candidates(
             moderation_status=moderation_status,
             spiritual_score=spiritual_score,
             theology_score=theology_score,
-            entertainment_score=0.55,
+            entertainment_score=0.45 + fit_score * 0.3,
             freshness_score=0.7,
         )
         db.add(video)
@@ -155,6 +188,14 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
     hidden_video_ids = select(models.NotInterested.video_id).where(
         models.NotInterested.user_id == user.id
     )
+    impression_video_ids = select(models.FeedImpression.video_id).where(
+        models.FeedImpression.user_id == user.id
+    )
+    watched_video_ids = select(models.WatchEvent.video_id).where(
+        models.WatchEvent.user_id == user.id
+    )
+    liked_video_ids = select(models.Like.video_id).where(models.Like.user_id == user.id)
+    saved_video_ids = select(models.Save.video_id).where(models.Save.user_id == user.id)
     blocked_creator_ids = select(models.Block.target_id).where(
         and_(models.Block.user_id == user.id, models.Block.target_type == "creator")
     )
@@ -166,17 +207,25 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
             .where(models.Video.moderation_status == "approved")
             .where(models.Video.is_embeddable.is_(True))
             .where(models.Video.id.not_in(hidden_video_ids))
+            .where(models.Video.id.not_in(impression_video_ids))
+            .where(models.Video.id.not_in(watched_video_ids))
+            .where(models.Video.id.not_in(liked_video_ids))
+            .where(models.Video.id.not_in(saved_video_ids))
             .where(models.Video.creator_id.not_in(blocked_creator_ids))
         )
     )
 
     def score(video: models.Video) -> float:
         topic_boost = len(preferred_topics.intersection(set(video.topics or []))) * 0.15
+        fit_boost = reel_fit_score(
+            video.duration_seconds, video.title, video.description, video.tags
+        )
         return (
             video.spiritual_score * 0.34
             + video.theology_score * 0.26
-            + video.entertainment_score * 0.14
-            + video.freshness_score * 0.12
+            + video.entertainment_score * 0.11
+            + video.freshness_score * 0.10
+            + fit_boost * 0.10
             + topic_boost
         )
 
