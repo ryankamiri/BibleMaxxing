@@ -220,15 +220,34 @@ Reviewed: 2026-06-30
 - A live production disposable-user probe fetched `/feed?limit=5`, then fetched
   `/feed?limit=8` with the first page's video IDs repeated as
   `exclude_video_ids`; page 2 returned `8` videos and `duplicates` was `[]`.
-- The updated simulator build installed and launched successfully on the iPhone
-  17 simulator. Ryan's physical iPhone 17 Pro Max was listed as unavailable at
-  this checkpoint, so the latest build was not reinstalled on device.
+- At `2026-06-30 22:11:48 UTC`, the reusable verifier
+  `python3 scripts/verify_infinite_scroll.py --base-url
+  https://api.tailortom.org/biblemaxxing` passed against production with page 1
+  returning `5` videos, page 2 returning `8` videos, and `duplicates` as `[]`.
+- At `2026-06-30 22:15:05 UTC`, the iOS feed gained a full-page tail state for
+  loading, caught-up, and retry, plus per-session de-duping for impression/start
+  telemetry so reload/start/on-change paths do not double-record the same
+  video.
+- Verification after the iOS tail-state hardening passed:
+  - `backend/.venv/bin/python -m ruff check scripts/verify_infinite_scroll.py`
+  - `backend/.venv/bin/python -m pytest backend/tests -q` with
+    `26 passed, 4 warnings`
+  - `xcodebuild -project ios/BibleMaxxing.xcodeproj -scheme BibleMaxxing
+    -configuration Debug -destination
+    'id=52478642-5FE7-4182-B023-5BD6EE03C88A' -derivedDataPath
+    /tmp/BibleMaxxingSubmitDerived CODE_SIGNING_ALLOWED=NO build`
+  - `python3 scripts/verify_infinite_scroll.py --base-url
+    https://api.tailortom.org/biblemaxxing`
+- The updated simulator app installed and launched successfully on the iPhone
+  17 simulator with process id `1367`.
 - A fresh local Release archive succeeded at
   `/tmp/BibleMaxxingArchive/BibleMaxxing.xcarchive` with bundle id
   `com.ryanamiri.biblemaxxing` and signing identity `Apple Development:
   ryankamiri@icloud.com (LWASV7VRQ6)`. App Store distribution signing/upload
   still requires the friend's Apple Developer team credentials or App Store
   Connect access.
+- Ryan's physical iPhone 17 Pro Max was listed as unavailable at this
+  checkpoint, so the latest build was not reinstalled on device.
 
 ## App Review Account Verification
 

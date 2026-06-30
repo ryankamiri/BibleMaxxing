@@ -26,6 +26,14 @@ struct FeedView: View {
                             .containerRelativeFrame([.horizontal, .vertical])
                             .id(item.id)
                         }
+
+                        if viewModel.shouldShowTailPage {
+                            FeedTailPage(state: viewModel.tailState) {
+                                Task { await viewModel.retryLoadMoreFromTail() }
+                            }
+                            .containerRelativeFrame([.horizontal, .vertical])
+                            .id(viewModel.tailItemID)
+                        }
                     }
                     .scrollTargetLayout()
                 }
@@ -539,6 +547,85 @@ private struct EmptyFeedPage: View {
     }
 }
 
+enum FeedTailState: Equatable {
+    case hidden
+    case loading
+    case caughtUp
+    case failed
+}
+
+private struct FeedTailPage: View {
+    let state: FeedTailState
+    let onRetry: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Spacer(minLength: 120)
+
+                content
+
+                Spacer(minLength: 160)
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .foregroundStyle(.white)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .hidden:
+            EmptyView()
+        case .loading:
+            ProgressView()
+                .tint(.white)
+                .controlSize(.large)
+            Text("Loading more")
+                .font(.title2.weight(.black))
+        case .caughtUp:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundStyle(.yellow)
+            Text("You're caught up")
+                .font(.title2.weight(.black))
+            Text("Take a breath, then check again when you're ready.")
+                .font(.body.weight(.medium))
+                .foregroundStyle(.white.opacity(0.66))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 280)
+            Button(action: onRetry) {
+                Label("Check again", systemImage: "arrow.clockwise")
+                    .font(.headline.weight(.bold))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(.white.opacity(0.14), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.16)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Check for more videos")
+        case .failed:
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundStyle(.yellow)
+            Text("Couldn't load more")
+                .font(.title2.weight(.black))
+            Button(action: onRetry) {
+                Label("Try again", systemImage: "arrow.clockwise")
+                    .font(.headline.weight(.bold))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(.white.opacity(0.14), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.16)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Try loading more videos again")
+        }
+    }
+}
+
 struct CommentsSheet: View {
     @EnvironmentObject private var session: SessionStore
     let video: FeedVideo
@@ -798,10 +885,12 @@ final class FeedViewModel: ObservableObject {
     @Published var isUserPaused = false
     @Published var isLoading = false
     @Published var isLoadingMore = false
+    @Published var tailState: FeedTailState = .hidden
     @Published var errorMessage: String?
     @Published var commentsVideo: FeedVideo?
     @Published var pendingReport: ReportTarget?
 
+    let tailItemID = "feed-tail"
     private let feedPageSize = 12
     private let loadMorePageSize = 24
     private let loadMoreThreshold = 4
@@ -813,6 +902,12 @@ final class FeedViewModel: ObservableObject {
     private var playbackStartedAt: Date?
     private var pendingSingleTapTask: Task<Void, Never>?
     private var lastPlaybackTap: (id: UUID, date: Date)?
+    private var impressedVideoIDs: Set<String> = []
+    private var startedVideoIDs: Set<String> = []
+
+    var shouldShowTailPage: Bool {
+        !items.isEmpty && tailState != .hidden
+    }
 
     func load(using apiClient: APIClient) async {
         guard !hasLoaded else { return }
@@ -826,8 +921,11 @@ final class FeedViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         canLoadMore = true
+        tailState = .hidden
         reflectionInserted = false
         sessionStartedAt = Date()
+        impressedVideoIDs.removeAll()
+        startedVideoIDs.removeAll()
 
         do {
             let response = try await apiClient.fetchFeed(limit: feedPageSize)
@@ -839,6 +937,7 @@ final class FeedViewModel: ObservableObject {
             if items.isEmpty {
                 items = SampleData.fallbackFeed
                 canLoadMore = false
+                tailState = .hidden
                 errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
             }
 
@@ -848,6 +947,7 @@ final class FeedViewModel: ObservableObject {
             items = SampleData.fallbackFeed
             currentItemID = items.first?.id
             canLoadMore = false
+            tailState = .hidden
             errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
         }
     }
@@ -898,6 +998,7 @@ final class FeedViewModel: ObservableObject {
     }
 
     func recordCurrentItemStart(_ itemID: String?) async {
+        guard itemID != tailItemID else { return }
         guard let itemID, let itemIndex = index(for: itemID) else { return }
         let item = items[itemIndex]
         isUserPaused = false
@@ -905,8 +1006,12 @@ final class FeedViewModel: ObservableObject {
         maybeInsertReflection(after: itemID)
 
         if let video = item.video {
-            await recordImpression(videoID: video.id, position: itemIndex)
-            if didTapStart {
+            if !impressedVideoIDs.contains(video.id) {
+                impressedVideoIDs.insert(video.id)
+                await recordImpression(videoID: video.id, position: itemIndex)
+            }
+            if didTapStart && !startedVideoIDs.contains(video.id) {
+                startedVideoIDs.insert(video.id)
                 await recordWatch(videoID: video.id, secondsWatched: 0, percentComplete: 0, rewatched: false, eventType: .start)
             }
         }
@@ -1063,9 +1168,21 @@ final class FeedViewModel: ObservableObject {
         guard let itemID, let currentIndex = index(for: itemID) else { return }
         guard canLoadMore, !isLoadingMore, !items.isEmpty else { return }
         guard items.count - currentIndex - 1 <= loadMoreThreshold else { return }
-        guard let apiClient else { return }
+        await fetchMoreItems(jumpToFirstNewItem: false)
+    }
 
+    func retryLoadMoreFromTail() async {
+        guard tailState == .failed || tailState == .caughtUp else { return }
+        canLoadMore = true
+        await fetchMoreItems(jumpToFirstNewItem: true)
+    }
+
+    private func fetchMoreItems(jumpToFirstNewItem: Bool) async {
+        guard canLoadMore, !isLoadingMore, !items.isEmpty else { return }
+        guard let apiClient else { return }
         isLoadingMore = true
+        tailState = .loading
+        errorMessage = nil
         defer { isLoadingMore = false }
 
         do {
@@ -1090,12 +1207,19 @@ final class FeedViewModel: ObservableObject {
 
             if newItems.isEmpty {
                 canLoadMore = false
+                tailState = .caughtUp
+                errorMessage = nil
                 return
             }
 
             items.append(contentsOf: newItems)
+            tailState = .hidden
+            if jumpToFirstNewItem, let firstNewItemID = newItems.first?.id {
+                currentItemID = firstNewItemID
+            }
             errorMessage = nil
         } catch {
+            tailState = .failed
             errorMessage = "We couldn't load more videos. Try refreshing if the feed stops."
         }
     }

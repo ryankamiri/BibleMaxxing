@@ -10,6 +10,8 @@ This folder owns user-facing SwiftUI screens and feature view models.
 - Keep feed scrolling appendable: when the user gets close to the last loaded
   card, fetch more while passing loaded video IDs as exclusions so native paging
   does not strand them at the end or append duplicate tail items.
+- Keep a full-page feed tail state for loading, caught-up, and retry so slow or
+  failed append requests do not feel like a broken scroll gesture.
 - Keep privacy, terms, community-guidelines, and support links visible on the
   unauthenticated auth screen and in Settings.
 - Keep the Sign in with Apple code path available for future Apple Developer

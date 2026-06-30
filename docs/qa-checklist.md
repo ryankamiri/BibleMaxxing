@@ -61,6 +61,7 @@ Preferred smoke script shape:
 ```bash
 BASE_URL=http://127.0.0.1:8000 ./scripts/smoke_api.sh
 BASE_URL=https://api.tailortom.org/biblemaxxing ./scripts/smoke_api.sh
+python3 scripts/verify_infinite_scroll.py --base-url https://api.tailortom.org/biblemaxxing
 ```
 
 ## YouTube Ingestion

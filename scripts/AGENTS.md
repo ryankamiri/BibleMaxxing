@@ -26,6 +26,8 @@ Read the root `AGENTS.md` before changing anything here.
 - `run_evals.py` runs recommendation and YouTube ingestion eval scorecards and
   can compare them with a saved JSON baseline.
 - `smoke_api.sh` walks the deployed or local API with throwaway test accounts.
+- `verify_infinite_scroll.py` creates a throwaway user and verifies appended
+  feed pages exclude already loaded video IDs.
 - `dev_backend.sh` sets up/runs a local SQLite FastAPI dev backend.
 - `build_ios_simulator.sh` builds the SwiftUI app for the iPhone 17 simulator.
 - Long-running production ingestion lives in `backend/app/youtube_worker.py`.
