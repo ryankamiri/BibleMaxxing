@@ -8,3 +8,5 @@ This folder owns reusable UI components.
 - Keep embedded player web views non-interactive; feed gestures, taps, and
   controls belong to SwiftUI so native YouTube chrome does not steal touches.
 - Do not add video byte download, offline playback, or camera-roll save behavior.
+- Use `BrandLogoView` for in-app logo placement so the approved asset is sized
+  and rounded consistently across launch, auth, and feed chrome surfaces.

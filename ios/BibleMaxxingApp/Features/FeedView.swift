@@ -87,9 +87,13 @@ private struct FeedChrome: View {
 
                 Spacer()
 
-                Text("BibleMaxxing")
-                    .font(.headline.weight(.black))
-                    .shadow(radius: 8)
+                HStack(spacing: 8) {
+                    BrandLogoView(size: 26)
+
+                    Text("BibleMaxxing")
+                        .font(.headline.weight(.black))
+                }
+                .shadow(radius: 8)
 
                 Spacer()
 

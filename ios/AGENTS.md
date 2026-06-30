@@ -68,5 +68,6 @@ Read the root `AGENTS.md` before changing anything here.
 - Networking/session state: `BibleMaxxingApp/Services/`.
 - Reusable UI and YouTube embed wrapper: `BibleMaxxingApp/Components/`.
 - Feature screens: `BibleMaxxingApp/Features/`.
+- Brand assets and app icon catalog: `BibleMaxxingApp/Assets.xcassets/`.
 
 The app points at `https://api.tailortom.org/biblemaxxing/api/v1` and stores bearer tokens in Keychain. Feed video playback is through the backend-hosted official YouTube iframe player shell in `WKWebView`; do not add MP4 download, offline playback, or save-to-camera-roll behavior.

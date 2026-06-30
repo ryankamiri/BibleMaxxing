@@ -17,12 +17,16 @@ struct AuthView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("BibleMaxxing")
-                            .font(.system(size: 44, weight: .black, design: .rounded))
-                        Text("Don't brainrot. BibleMax.")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                    HStack(alignment: .center, spacing: 14) {
+                        BrandLogoView(size: 58)
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("BibleMaxxing")
+                                .font(.system(size: 36, weight: .black, design: .rounded))
+                            Text("Don't brainrot. BibleMax.")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.top, 34)
 

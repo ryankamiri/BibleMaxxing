@@ -27,6 +27,8 @@ private struct LaunchLoadingView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 18) {
+                BrandLogoView(size: 72)
+
                 Text("BibleMaxxing")
                     .font(.system(size: 34, weight: .black, design: .rounded))
                 Text("Don't brainrot. BibleMax.")

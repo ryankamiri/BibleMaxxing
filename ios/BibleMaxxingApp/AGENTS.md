@@ -9,3 +9,5 @@ This folder contains source code for the native SwiftUI iOS app.
   shell URL from `Services/APIClient.swift`; never add MP4 download, cache,
   rehost, or camera-roll save logic.
 - Keep auth, onboarding, feed, and account deletion flows runnable without hardcoded secrets.
+- Keep `Assets.xcassets/AppIcon.appiconset` and `Assets.xcassets/BrandLogo.imageset`
+  in sync when the approved BibleMaxxing logo changes.

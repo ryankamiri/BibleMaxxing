@@ -18,6 +18,8 @@
 		01A000000000000000000109 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A000000000000000000009 /* OnboardingView.swift */; };
 		01A000000000000000000110 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A000000000000000000010 /* FeedView.swift */; };
 		01A000000000000000000111 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A000000000000000000011 /* SettingsView.swift */; };
+		01A000000000000000000112 /* BrandLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A000000000000000000013 /* BrandLogoView.swift */; };
+		01A000000000000000000113 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01A000000000000000000014 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +35,8 @@
 		01A000000000000000000010 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		01A000000000000000000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		01A000000000000000000012 /* BibleMaxxing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BibleMaxxing.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		01A000000000000000000013 /* BrandLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandLogoView.swift; sourceTree = "<group>"; };
+		01A000000000000000000014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +61,7 @@
 		01A000000000000000000302 /* BibleMaxxingApp */ = {
 			isa = PBXGroup;
 			children = (
+				01A000000000000000000014 /* Assets.xcassets */,
 				01A000000000000000000304 /* App */,
 				01A000000000000000000305 /* Models */,
 				01A000000000000000000306 /* Services */,
@@ -103,6 +108,7 @@
 		01A000000000000000000307 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				01A000000000000000000013 /* BrandLogoView.swift */,
 				01A000000000000000000006 /* YouTubePlayerView.swift */,
 				01A000000000000000000007 /* ActionRail.swift */,
 			);
@@ -178,6 +184,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01A000000000000000000113 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +202,7 @@
 				01A000000000000000000105 /* SessionStore.swift in Sources */,
 				01A000000000000000000106 /* YouTubePlayerView.swift in Sources */,
 				01A000000000000000000107 /* ActionRail.swift in Sources */,
+				01A000000000000000000112 /* BrandLogoView.swift in Sources */,
 				01A000000000000000000108 /* AuthViews.swift in Sources */,
 				01A000000000000000000109 /* OnboardingView.swift in Sources */,
 				01A000000000000000000110 /* FeedView.swift in Sources */,
@@ -324,6 +332,7 @@
 		01A000000000000000000803 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -350,6 +359,7 @@
 		01A000000000000000000804 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
