@@ -13,3 +13,5 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - Recommendation tests should prove per-user divergence, creator/topic
   diversity, seen-history exclusions, negative feedback, follow boosts, capped
   watch-time influence, and feedback validation through API-visible behavior.
+  Include cases where one preacher/source appears across multiple repost
+  channels, because channel diversity alone is not enough.

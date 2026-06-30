@@ -66,6 +66,7 @@ ALIGNED_SOURCE_TOPICS = {
 TRUSTED_INFLUENCER_TOPIC = "trusted-influencer"
 PASTOR_CLIPS_TOPIC = "pastor-clips"
 TRUSTED_INFLUENCER_BOOST = 0.22
+ALIGNED_SOURCE_TOPIC_SLUGS = set(ALIGNED_SOURCE_TOPICS.values())
 TOPIC_WEIGHT_MIN = -0.35
 TOPIC_WEIGHT_MAX = 0.42
 CREATOR_WEIGHT_MIN = -0.24
@@ -75,10 +76,13 @@ RANK_TOPIC_SIGNAL_MAX = 0.28
 RANK_CREATOR_SIGNAL_MIN = -0.14
 RANK_CREATOR_SIGNAL_MAX = 0.18
 CREATOR_REPEAT_PENALTY = 0.16
+SOURCE_REPEAT_PENALTY = 0.15
 TOPIC_REPEAT_PENALTY = 0.025
 NEW_CREATOR_BONUS = 0.08
+NEW_SOURCE_BONUS = 0.05
 NEW_TOPIC_BONUS = 0.04
 MAX_CREATOR_SHARE = 0.25
+MAX_SOURCE_SHARE = 0.25
 
 EXCLUDED_KEYWORDS = {
     "mormon",
@@ -340,6 +344,18 @@ def trusted_influencer_boost(video: models.Video) -> float:
     return 0
 
 
+def source_diversity_keys(video: models.Video) -> set[str]:
+    keys = video_topic_set(video).intersection(ALIGNED_SOURCE_TOPIC_SLUGS)
+    creator_profile = video.creator.theology_profile if video.creator else None
+    if isinstance(creator_profile, dict):
+        keys.update(
+            normalize_topic(slug)
+            for slug in creator_profile.get("trusted_influencer_slugs", [])
+            if normalize_topic(slug)
+        )
+    return keys
+
+
 def interest_profile_from_topics(preferred_topics: set[str] | None = None) -> UserInterestProfile:
     profile = UserInterestProfile()
     for topic in preferred_topics or set():
@@ -488,21 +504,31 @@ def creator_cap_for_limit(limit: int) -> int:
     return max(2, ceil(limit * MAX_CREATOR_SHARE))
 
 
+def source_cap_for_limit(limit: int) -> int:
+    return max(2, ceil(limit * MAX_SOURCE_SHARE))
+
+
 def diversity_adjusted_score(
     video: models.Video,
     base_score: float,
     creator_counts: Counter[str],
+    source_counts: Counter[str],
     topic_counts: Counter[str],
 ) -> float:
     topics = video_topic_set(video)
+    source_keys = source_diversity_keys(video)
     repeated_topic_count = sum(topic_counts[topic] for topic in topics)
+    repeated_source_count = sum(source_counts[key] for key in source_keys)
     has_new_topic = bool(topics) and any(topic_counts[topic] == 0 for topic in topics)
+    has_new_source = bool(source_keys) and any(source_counts[key] == 0 for key in source_keys)
 
     return (
         base_score
         - creator_counts[video.creator_id] * CREATOR_REPEAT_PENALTY
+        - repeated_source_count * SOURCE_REPEAT_PENALTY
         - min(repeated_topic_count, 4) * TOPIC_REPEAT_PENALTY
         + (NEW_CREATOR_BONUS if creator_counts[video.creator_id] == 0 else 0)
+        + (NEW_SOURCE_BONUS if has_new_source else 0)
         + (NEW_TOPIC_BONUS if has_new_topic else 0)
     )
 
@@ -519,6 +545,27 @@ def creator_has_available_alternative(
     )
 
 
+def source_has_available_alternative(
+    remaining: list[tuple[models.Video, float]],
+    source_keys: set[str],
+    source_counts: Counter[str],
+    source_cap: int,
+) -> bool:
+    if not source_keys:
+        return False
+    return any(
+        not source_keys.intersection(source_diversity_keys(video))
+        or all(source_counts[key] < source_cap for key in source_diversity_keys(video))
+        for video, _ in remaining
+    )
+
+
+def video_repeats_previous_source(video: models.Video, selected: list[models.Video]) -> bool:
+    if not selected:
+        return False
+    return bool(source_diversity_keys(video).intersection(source_diversity_keys(selected[-1])))
+
+
 def diversify_ranked_videos(
     videos: list[models.Video],
     interest_profile: UserInterestProfile,
@@ -527,8 +574,10 @@ def diversify_ranked_videos(
     remaining = [(video, ranking_score(video, interest_profile)) for video in videos]
     selected: list[models.Video] = []
     creator_counts: Counter[str] = Counter()
+    source_counts: Counter[str] = Counter()
     topic_counts: Counter[str] = Counter()
     creator_cap = creator_cap_for_limit(limit)
+    source_cap = source_cap_for_limit(limit)
 
     while remaining and len(selected) < limit:
         best_index: int | None = None
@@ -542,9 +591,18 @@ def diversify_ranked_videos(
                 continue
             if selected and selected[-1].creator_id == video.creator_id and has_creator_alternative:
                 continue
+            source_keys = source_diversity_keys(video)
+            has_source_alternative = source_has_available_alternative(
+                remaining, source_keys, source_counts, source_cap
+            )
+            source_is_over_cap = any(source_counts[key] >= source_cap for key in source_keys)
+            if source_is_over_cap and has_source_alternative:
+                continue
+            if video_repeats_previous_source(video, selected) and has_source_alternative:
+                continue
 
             candidate_score = diversity_adjusted_score(
-                video, base_score, creator_counts, topic_counts
+                video, base_score, creator_counts, source_counts, topic_counts
             )
             if candidate_score > best_score:
                 best_index = index
@@ -557,6 +615,7 @@ def diversify_ranked_videos(
                     remaining[index][0],
                     remaining[index][1],
                     creator_counts,
+                    source_counts,
                     topic_counts,
                 ),
             )
@@ -564,6 +623,7 @@ def diversify_ranked_videos(
         video, _ = remaining.pop(best_index)
         selected.append(video)
         creator_counts[video.creator_id] += 1
+        source_counts.update(source_diversity_keys(video))
         topic_counts.update(video_topic_set(video))
 
     return selected

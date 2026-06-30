@@ -109,7 +109,9 @@ After scoring, the feed uses a diversity-aware reranker. It should balance
 high-affinity creators with exploration across safe creators and topics, avoid
 back-to-back repeats from the same creator when alternatives exist, and cap a
 single creator's share of a fresh feed while enough eligible alternatives are
-available.
+available. Creator diversity must also account for aligned preacher/source
+topics, such as `philip-anthony-mitchell`, so repost channels cannot cause one
+person or ministry lane to dominate the feed.
 
 Do not hard-ban landscape videos solely for format. Prefer Shorts-like,
 screen-filling videos in ranking, but allow safe and spiritually useful

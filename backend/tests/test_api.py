@@ -393,6 +393,65 @@ def test_feed_balances_trusted_creator_relevance_with_diversity() -> None:
     assert "philip-1" in [item["video"]["id"] for item in items[:3]]
 
 
+def test_feed_limits_same_preacher_across_repost_channels() -> None:
+    token, _ = register_user("source-diversity@example.com")
+
+    with TestingSessionLocal() as db:
+        for index in range(1, 8):
+            creator = add_creator(db, f"philip-repost-{index}", f"Philip Repost Channel {index}")
+            add_video(
+                db,
+                f"philip-repost-video-{index}",
+                creator,
+                f"Philip Anthony Mitchell repost {index}",
+                ["trusted-influencer", "pastor-clips", "philip-anthony-mitchell", "sermon"],
+                spiritual_score=0.88,
+                theology_score=0.88,
+                entertainment_score=0.75,
+                freshness_score=0.75,
+            )
+
+        alternatives = [
+            ("bibleproject", "BibleProject", "bibleproject-clip", ["bibleproject", "scripture"]),
+            ("bryce", "Bryce Crawford", "bryce-clip", ["bryce-crawford", "testimony"]),
+            ("cliffe", "Cliffe Knechtle", "cliffe-clip", ["cliffe-knechtle", "apologetics"]),
+            ("gavin", "Gavin Ortlund", "gavin-clip", ["gavin-ortlund", "theology"]),
+            ("tim", "Tim Keller", "tim-clip", ["tim-keller", "gospel"]),
+            ("prayer", "Prayer Teacher", "prayer-clip", ["prayer"]),
+        ]
+        for creator_id, name, video_id, topics in alternatives:
+            creator = add_creator(db, creator_id, name)
+            add_video(db, video_id, creator, f"{name} video", topics)
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/onboarding",
+            headers=auth_headers(token),
+            json={"topicSlugs": ["Pastor Clips"], "intensity": "balanced"},
+        ).status_code
+        == 200
+    )
+
+    items = feed_video_items(token, limit=8)
+    philip_count = sum(
+        "philip-anthony-mitchell" in item["video"]["topics"] for item in items
+    )
+    source_sequences = [
+        "philip" if "philip-anthony-mitchell" in item["video"]["topics"] else "other"
+        for item in items
+    ]
+
+    assert len(items) == 8
+    assert philip_count <= 2
+    assert "philip" in source_sequences
+    assert source_sequences.count("other") >= 6
+    assert all(
+        not (left == right == "philip")
+        for left, right in zip(source_sequences, source_sequences[1:], strict=False)
+    )
+
+
 def test_negative_feedback_downranks_related_videos_without_affecting_other_users() -> None:
     token, _ = register_user("negative@example.com")
     other_token, _ = register_user("other-negative@example.com")
