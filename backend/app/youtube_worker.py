@@ -25,17 +25,41 @@ def rotating_query_batch(queries: list[str], cursor: int, count: int) -> tuple[l
 def build_ingest_query_plan(
     settings: Settings,
     override_queries: list[str] | None = None,
+    broad_query_cursor: int = 0,
     pastor_query_cursor: int = 0,
-) -> tuple[list[str], int]:
+) -> tuple[list[str], int, int]:
     if override_queries:
-        return override_queries, pastor_query_cursor
+        return override_queries, broad_query_cursor, pastor_query_cursor
 
+    search_budget = max(1, settings.youtube_ingest_search_calls_per_cycle)
+    pastor_count = min(
+        settings.youtube_ingest_pastor_queries_per_cycle,
+        len(settings.youtube_ingest_pastor_query_list),
+        search_budget,
+    )
+    broad_count = min(
+        len(settings.youtube_ingest_query_list),
+        max(search_budget - pastor_count, 0),
+    )
+    if (
+        settings.youtube_ingest_query_list
+        and settings.youtube_ingest_pastor_query_list
+        and broad_count == 0
+    ):
+        broad_count = 1
+        pastor_count = max(0, search_budget - 1)
+
+    broad_queries, next_broad_cursor = rotating_query_batch(
+        settings.youtube_ingest_query_list,
+        broad_query_cursor,
+        broad_count,
+    )
     pastor_queries, next_cursor = rotating_query_batch(
         settings.youtube_ingest_pastor_query_list,
         pastor_query_cursor,
-        settings.youtube_ingest_pastor_queries_per_cycle,
+        pastor_count,
     )
-    return [*settings.youtube_ingest_query_list, *pastor_queries], next_cursor
+    return [*broad_queries, *pastor_queries], next_broad_cursor, next_cursor
 
 
 def should_stop_cycle_for_youtube_error(exc: YouTubeAPIError) -> bool:
@@ -76,6 +100,12 @@ def ingest_once(
                 candidates,
                 default_approve=settings.youtube_ingest_default_approve,
             )
+            evals.persist_eval_run(
+                db,
+                candidate_eval,
+                category="ingestion",
+                source="worker:ingest-candidates",
+            )
         total_created += created
         total_skipped += skipped
         logger.info(
@@ -112,24 +142,34 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = get_settings()
     interval = settings.youtube_ingest_interval_seconds
+    broad_query_cursor = 0
     pastor_query_cursor = 0
 
     while True:
-        query_plan, pastor_query_cursor = build_ingest_query_plan(
+        query_plan, broad_query_cursor, pastor_query_cursor = build_ingest_query_plan(
             settings,
             override_queries=args.query,
+            broad_query_cursor=broad_query_cursor,
             pastor_query_cursor=pastor_query_cursor,
         )
         if not args.query:
             query_plan_eval = evals.evaluate_query_plan(settings, query_plan)
+            with SessionLocal() as db:
+                evals.persist_eval_run(
+                    db,
+                    query_plan_eval,
+                    category="ingestion",
+                    source="worker:query-plan",
+                )
             logger.info(
                 "ingest query-plan eval status=%s score=%.1f broad_queries=%s "
-                "pastor_queries=%s duplicates=%s",
+                "pastor_queries=%s duplicates=%s estimated_daily_search_calls=%.1f",
                 query_plan_eval.status,
                 query_plan_eval.overall_score,
                 query_plan_eval.metrics["broad_query_count"],
                 query_plan_eval.metrics["pastor_query_count"],
                 query_plan_eval.metrics["duplicate_query_count"],
+                query_plan_eval.metrics["estimated_daily_search_calls"],
             )
         ingest_once(queries=query_plan, max_results=args.max_results)
         if args.once:

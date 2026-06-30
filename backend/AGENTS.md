@@ -42,6 +42,7 @@ Model at least:
 - blocks
 - reflection cards/events
 - admin review state
+- eval run history for recommendation and ingestion scorecards
 
 ## Content Ingestion
 
@@ -55,7 +56,8 @@ Model at least:
   An Answer.
 - Aligned pastor/creator sources are trusted influencers. Tag their videos with
   `trusted-influencer` and use a bounded ranking boost so they appear often
-  without overriding user safety controls or feedback.
+  without overriding user safety controls, feedback, or source/person diversity
+  caps across repost channels.
 - Do not download, cache, store, transcode, or serve YouTube audiovisual content.
 - Keep the player iframe passive (`pointer-events: none`) and disable YouTube
   embed controls (`controls: 0`) so mobile feed taps do not surface native
@@ -111,7 +113,9 @@ back-to-back repeats from the same creator when alternatives exist, and cap a
 single creator's share of a fresh feed while enough eligible alternatives are
 available. Creator diversity must also account for aligned preacher/source
 topics, such as `philip-anthony-mitchell`, so repost channels cannot cause one
-person or ministry lane to dominate the feed.
+person or ministry lane to dominate the feed. For small app-sized feeds, keep
+the source/person cap stricter than the broad eval threshold so the first screen
+does not feel like one preacher through many repost channels.
 
 Do not hard-ban landscape videos solely for format. Prefer Shorts-like,
 screen-filling videos in ranking, but allow safe and spiritually useful
@@ -126,6 +130,9 @@ Use those scorecards to test feed quality, source diversity, and personalization
 instead of relying only on eyeballing the app. Scorecard comparison against a
 saved JSON baseline is the accepted way to call a change improving, baselining,
 or regressing.
+Admin-triggered evals should be saved to `eval_runs` by default so backend
+history survives beyond logs and docs; use an explicit no-save option for
+one-off checks.
 
 YouTube ingestion changes must evaluate candidate quality before write: useful
 new rate, duplicate waste, trusted-source discovery, red-flag auto-approval,

@@ -418,6 +418,8 @@ def test_feed_limits_same_preacher_across_repost_channels() -> None:
             ("gavin", "Gavin Ortlund", "gavin-clip", ["gavin-ortlund", "theology"]),
             ("tim", "Tim Keller", "tim-clip", ["tim-keller", "gospel"]),
             ("prayer", "Prayer Teacher", "prayer-clip", ["prayer"]),
+            ("discipline", "Discipline Teacher", "discipline-clip", ["discipline"]),
+            ("workplace", "Workplace Faith", "workplace-clip", ["workplace"]),
         ]
         for creator_id, name, video_id, topics in alternatives:
             creator = add_creator(db, creator_id, name)
@@ -443,7 +445,7 @@ def test_feed_limits_same_preacher_across_repost_channels() -> None:
     ]
 
     assert len(items) == 8
-    assert philip_count <= 2
+    assert philip_count <= 1
     assert "philip" in source_sequences
     assert source_sequences.count("other") >= 6
     assert all(
@@ -566,15 +568,24 @@ def test_query_plan_eval_requires_broad_and_pastor_lanes() -> None:
         youtube_ingest_queries="general one|general two",
         youtube_ingest_pastor_queries="pastor one|pastor two",
         youtube_ingest_pastor_queries_per_cycle=1,
+        youtube_ingest_search_calls_per_cycle=3,
+        youtube_ingest_daily_search_call_budget=36,
     )
 
     healthy = evals.evaluate_query_plan(settings, ["general one", "general two", "pastor one"])
     missing_pastor = evals.evaluate_query_plan(settings, ["general one", "general two"])
+    over_budget = evals.evaluate_query_plan(
+        settings, ["general one", "general two", "pastor one", "pastor two"]
+    )
 
     assert healthy.gates["has_broad_discovery_lane"] is True
     assert healthy.gates["has_pastor_source_lane"] is True
+    assert healthy.gates["within_cycle_search_budget"] is True
+    assert healthy.gates["within_daily_search_budget"] is True
     assert missing_pastor.status == "regressed"
     assert missing_pastor.gates["has_pastor_source_lane"] is False
+    assert over_budget.status == "regressed"
+    assert over_budget.gates["within_cycle_search_budget"] is False
 
 
 def test_negative_feedback_downranks_related_videos_without_affecting_other_users() -> None:
@@ -775,23 +786,32 @@ def test_worker_rotates_pastor_queries_without_overriding_manual_queries() -> No
         youtube_ingest_queries="general one|general two",
         youtube_ingest_pastor_queries="pastor one|pastor two|pastor three",
         youtube_ingest_pastor_queries_per_cycle=2,
+        youtube_ingest_search_calls_per_cycle=3,
     )
 
-    queries, cursor = build_ingest_query_plan(settings, pastor_query_cursor=0)
-    assert queries == ["general one", "general two", "pastor one", "pastor two"]
-    assert cursor == 2
+    queries, broad_cursor, pastor_cursor = build_ingest_query_plan(
+        settings, broad_query_cursor=0, pastor_query_cursor=0
+    )
+    assert queries == ["general one", "pastor one", "pastor two"]
+    assert broad_cursor == 1
+    assert pastor_cursor == 2
 
-    next_queries, next_cursor = build_ingest_query_plan(settings, pastor_query_cursor=cursor)
-    assert next_queries == ["general one", "general two", "pastor three", "pastor one"]
-    assert next_cursor == 1
+    next_queries, next_broad_cursor, next_pastor_cursor = build_ingest_query_plan(
+        settings, broad_query_cursor=broad_cursor, pastor_query_cursor=pastor_cursor
+    )
+    assert next_queries == ["general two", "pastor three", "pastor one"]
+    assert next_broad_cursor == 0
+    assert next_pastor_cursor == 1
 
-    manual_queries, manual_cursor = build_ingest_query_plan(
+    manual_queries, manual_broad_cursor, manual_pastor_cursor = build_ingest_query_plan(
         settings,
         override_queries=["manual only"],
-        pastor_query_cursor=cursor,
+        broad_query_cursor=broad_cursor,
+        pastor_query_cursor=pastor_cursor,
     )
     assert manual_queries == ["manual only"]
-    assert manual_cursor == cursor
+    assert manual_broad_cursor == broad_cursor
+    assert manual_pastor_cursor == pastor_cursor
 
 
 def test_worker_stops_current_cycle_on_youtube_quota_errors() -> None:
@@ -804,6 +824,92 @@ def test_worker_stops_current_cycle_on_youtube_quota_errors() -> None:
 
     assert should_stop_cycle_for_youtube_error(quota_error) is True
     assert should_stop_cycle_for_youtube_error(transient_error) is False
+
+
+def test_admin_eval_runs_persist_and_require_admin_access() -> None:
+    admin_token, admin_user = register_user("eval-admin@example.com")
+    user_token, _ = register_user("eval-user@example.com")
+
+    with TestingSessionLocal() as db:
+        for index in range(4):
+            creator = add_creator(db, f"eval-history-creator-{index}", f"Eval Creator {index}")
+            add_video(
+                db,
+                f"eval-history-video-{index}",
+                creator,
+                f"Faithful discipleship short {index}",
+                ["prayer", "discipleship"],
+            )
+        db.commit()
+
+    assert (
+        client.get(
+            "/biblemaxxing/api/v1/admin/evals/runs", headers=auth_headers(user_token)
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/biblemaxxing/api/v1/admin/evals/recommendations",
+            headers=auth_headers(user_token),
+        ).status_code
+        == 403
+    )
+
+    recommendation_eval = client.get(
+        "/biblemaxxing/api/v1/admin/evals/recommendations?limit=3",
+        headers=auth_headers(admin_token),
+    )
+    assert recommendation_eval.status_code == 200, recommendation_eval.text
+    recommendation_payload = recommendation_eval.json()
+    assert recommendation_payload["saved"] is True
+    assert recommendation_payload["saved_run_id"]
+
+    runs = client.get(
+        "/biblemaxxing/api/v1/admin/evals/runs?limit=10",
+        headers=auth_headers(admin_token),
+    )
+    assert runs.status_code == 200, runs.text
+    saved_run = next(
+        run for run in runs.json() if run["id"] == recommendation_payload["saved_run_id"]
+    )
+    assert saved_run["scorecard_name"] == recommendation_payload["name"]
+    assert saved_run["category"] == "recommendation"
+    assert saved_run["status"] == recommendation_payload["status"]
+    assert saved_run["overall_score"] == recommendation_payload["overall_score"]
+    assert saved_run["metrics"]["feed_count"] >= 1
+    assert saved_run["gates"] == recommendation_payload["gates"]
+    assert saved_run["notes"] == recommendation_payload["notes"]
+    assert saved_run["subject_user_id"] == admin_user["id"]
+    assert saved_run["source"] == "admin:recommendations"
+
+    unsaved_red_team = client.get(
+        "/biblemaxxing/api/v1/admin/evals/ingest/red-team?save=false",
+        headers=auth_headers(admin_token),
+    )
+    assert unsaved_red_team.status_code == 200, unsaved_red_team.text
+    assert unsaved_red_team.json()["saved"] is False
+    assert unsaved_red_team.json()["saved_run_id"] is None
+
+    runs_after_unsaved = client.get(
+        "/biblemaxxing/api/v1/admin/evals/runs?limit=10",
+        headers=auth_headers(admin_token),
+    )
+    assert len(runs_after_unsaved.json()) == 1
+
+    red_team = client.get(
+        "/biblemaxxing/api/v1/admin/evals/ingest/red-team",
+        headers=auth_headers(admin_token),
+    )
+    assert red_team.status_code == 200, red_team.text
+    assert red_team.json()["saved"] is True
+
+    ingestion_runs = client.get(
+        "/biblemaxxing/api/v1/admin/evals/runs?category=ingestion",
+        headers=auth_headers(admin_token),
+    )
+    assert ingestion_runs.status_code == 200, ingestion_runs.text
+    assert [run["id"] for run in ingestion_runs.json()] == [red_team.json()["saved_run_id"]]
 
 
 def test_auth_onboarding_feed_and_interactions() -> None:

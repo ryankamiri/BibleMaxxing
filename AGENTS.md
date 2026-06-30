@@ -63,7 +63,8 @@ Allowed:
 - Treat those aligned pastor/creator sources as trusted influencers in the
   recommender. Their videos should show up often through a bounded ranking
   boost, while still respecting theological safety, reports, blocks, seen
-  history, and not-interested signals.
+  history, not-interested signals, and source/person diversity caps across
+  repost channels.
 - Store `youtube_video_id`, title, description, channel, thumbnails, duration, tags, topic scores, embeddings, ranking features, moderation status, and source URLs.
 - Play YouTube videos through the official embedded player in the app.
 - Prefetch metadata, thumbnails, feed candidates, ranking results, and next-player shells.

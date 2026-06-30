@@ -249,3 +249,23 @@ class AdminAudit(Base):
     target_id: Mapped[str] = mapped_column(String(120), index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EvalRun(Base):
+    __tablename__ = "eval_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scorecard_name: Mapped[str] = mapped_column(String(160), index=True)
+    category: Mapped[str] = mapped_column(String(60), index=True)
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    overall_score: Mapped[float] = mapped_column(Float)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    gates: Mapped[dict] = mapped_column(JSON, default=dict)
+    notes: Mapped[list] = mapped_column(JSON, default=list)
+    subject_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    source: Mapped[str] = mapped_column(String(80), default="admin")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )

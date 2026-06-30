@@ -127,6 +127,20 @@ Reviewed: 2026-06-30
   logged one query-plan eval, encountered one `429` quota error, stopped the
   current cycle early, and slept for `7200` seconds instead of continuing to
   hit later queries.
+- At `2026-06-30 17:44:20 UTC`, after tightening source/person diversity and
+  deploying eval-history persistence, production migration state was
+  `0002_eval_runs`; `eval_runs` contained the worker query-plan scorecard:
+  status `healthy`, score `100.0`, `4` broad queries, `2` pastor/source
+  queries, and estimated `72.0` YouTube search calls per day.
+- Production inventory at the same checkpoint had `395` videos, `392`
+  approved/embeddable videos, and `249` creators with approved embeddable
+  videos. Top approved creators included BibleProject `36`, Those Few `14`,
+  2819 Church `9`, David Diga Hernandez `8`, Hailey Julia `7`, Gathering
+  Worship `6`, and JoeChristianGuy `6`.
+- A production feed probe for `ryanamiri05@gmail.com` with `limit=12` returned
+  exactly one `philip-anthony-mitchell` source item, no repeated creators,
+  max creator share `0.0833`, max aligned source share `0.0833`, recommendation
+  eval status `healthy`, and score `91.66`.
 
 ## Remaining Manual Checks
 

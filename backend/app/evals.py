@@ -87,6 +87,41 @@ def compare_scorecards(
     }
 
 
+def persist_eval_run(
+    db: Session,
+    scorecard: EvalScorecard,
+    category: str,
+    subject_user_id: str | None = None,
+    source: str = "admin",
+) -> models.EvalRun:
+    data = scorecard.to_dict()
+    run = models.EvalRun(
+        scorecard_name=str(data["name"]),
+        category=category,
+        status=str(data["status"]),
+        overall_score=float(data["overall_score"]),
+        metrics=data.get("metrics", {}),
+        gates=data.get("gates", {}),
+        notes=data.get("notes", []),
+        subject_user_id=subject_user_id,
+        source=source,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def eval_scorecard_response(
+    scorecard: EvalScorecard,
+    saved_run: models.EvalRun | None = None,
+) -> dict[str, Any]:
+    data = scorecard.to_dict()
+    data["saved"] = saved_run is not None
+    data["saved_run_id"] = saved_run.id if saved_run is not None else None
+    return data
+
+
 def evaluate_recommendation_feed(
     videos: list[models.Video],
     limit: int,
@@ -338,16 +373,30 @@ def evaluate_query_plan(settings: Settings, queries: list[str]) -> EvalScorecard
     broad_count = len(query_set.intersection(broad_queries))
     pastor_count = len(query_set.intersection(pastor_queries))
     duplicate_count = len(queries) - len(query_set)
+    cycle_budget = max(1, settings.youtube_ingest_search_calls_per_cycle)
+    daily_budget = max(1, settings.youtube_ingest_daily_search_call_budget)
+    estimated_daily_search_calls = len(queries) * (
+        86400 / max(settings.youtube_ingest_interval_seconds, 1)
+    )
     score = (
-        min(broad_count / max(len(broad_queries), 1), 1) * 45
-        + min(pastor_count / max(settings.youtube_ingest_pastor_queries_per_cycle, 1), 1) * 35
+        (1 if broad_count > 0 else 0) * 25
+        + (1 if pastor_count > 0 else 0) * 25
         + (1 - _safe_share(duplicate_count, max(len(queries), 1))) * 20
+        + (1 if len(queries) <= cycle_budget else 0) * 15
+        + (1 if estimated_daily_search_calls <= daily_budget else 0) * 15
     )
     gates = {
         "has_broad_discovery_lane": broad_count > 0,
         "has_pastor_source_lane": pastor_count > 0,
         "no_duplicate_queries": duplicate_count == 0,
+        "within_cycle_search_budget": len(queries) <= cycle_budget,
+        "within_daily_search_budget": estimated_daily_search_calls <= daily_budget,
     }
+    notes = []
+    if len(queries) > cycle_budget:
+        notes.append("Query plan exceeds the configured per-cycle search call budget.")
+    if estimated_daily_search_calls > daily_budget:
+        notes.append("Query plan exceeds the configured daily search call budget.")
     return EvalScorecard(
         name="youtube_ingest_query_plan",
         overall_score=score,
@@ -357,8 +406,12 @@ def evaluate_query_plan(settings: Settings, queries: list[str]) -> EvalScorecard
             "broad_query_count": broad_count,
             "pastor_query_count": pastor_count,
             "duplicate_query_count": duplicate_count,
+            "search_calls_per_cycle_budget": cycle_budget,
+            "estimated_daily_search_calls": estimated_daily_search_calls,
+            "daily_search_call_budget": daily_budget,
         },
         gates=gates,
+        notes=notes,
     )
 
 

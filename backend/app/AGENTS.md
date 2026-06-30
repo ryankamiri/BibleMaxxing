@@ -31,9 +31,15 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
   invariant so trusted creators can appear often without monopolizing the feed.
   It should cap repeated source/person keys such as `philip-anthony-mitchell`
   across repost channels, not only repeated `creator_id` rows.
+- Small fresh feeds should be especially strict about source/person caps; one
+  aligned preacher/source can appear, but should not crowd the first screen
+  when safe alternatives exist.
 - `evals.py` owns scorecards for recommendation quality, YouTube candidate
   quality, red-team ingestion fixtures, query-plan coverage, and baseline
   comparison. Update it when ranking or ingestion semantics change.
+- Admin eval endpoints persist scorecard runs in `eval_runs` by default and
+  expose `save=false` for dry-run checks. Keep the recent-runs endpoint
+  admin-only.
 - Positive feedback endpoints should validate that the target video exists
   before returning success, so the app never believes it trained the recommender
   on a missing video.

@@ -65,14 +65,18 @@ ALIGNED_SOURCE_TOPICS = {
 
 TRUSTED_INFLUENCER_TOPIC = "trusted-influencer"
 PASTOR_CLIPS_TOPIC = "pastor-clips"
-TRUSTED_INFLUENCER_BOOST = 0.22
+TRUSTED_INFLUENCER_BOOST = 0.16
+ALIGNED_SOURCE_MENTION_BOOST = 0.10
+PASTOR_CLIP_BOOST = 0.07
 ALIGNED_SOURCE_TOPIC_SLUGS = set(ALIGNED_SOURCE_TOPICS.values())
 TOPIC_WEIGHT_MIN = -0.35
 TOPIC_WEIGHT_MAX = 0.42
 CREATOR_WEIGHT_MIN = -0.24
 CREATOR_WEIGHT_MAX = 0.28
-RANK_TOPIC_SIGNAL_MIN = -0.22
-RANK_TOPIC_SIGNAL_MAX = 0.28
+RANK_TOPIC_SIGNAL_MIN = -0.18
+RANK_TOPIC_SIGNAL_MAX = 0.24
+RANK_SOURCE_SIGNAL_MIN = -0.18
+RANK_SOURCE_SIGNAL_MAX = 0.12
 RANK_CREATOR_SIGNAL_MIN = -0.14
 RANK_CREATOR_SIGNAL_MAX = 0.18
 CREATOR_REPEAT_PENALTY = 0.16
@@ -331,7 +335,7 @@ def seed_sample_inventory(db: Session) -> tuple[int, int]:
 
 
 def trusted_influencer_boost(video: models.Video) -> float:
-    topics = set(video.topics or [])
+    topics = video_topic_set(video)
     creator_profile = video.creator.theology_profile if video.creator else None
     creator_is_trusted = bool(
         isinstance(creator_profile, dict) and creator_profile.get("trusted_influencer")
@@ -339,10 +343,10 @@ def trusted_influencer_boost(video: models.Video) -> float:
 
     if TRUSTED_INFLUENCER_TOPIC in topics or creator_is_trusted:
         return TRUSTED_INFLUENCER_BOOST
-    if topics.intersection(set(ALIGNED_SOURCE_TOPICS.values())):
-        return TRUSTED_INFLUENCER_BOOST * 0.85
+    if topics.intersection(ALIGNED_SOURCE_TOPIC_SLUGS):
+        return ALIGNED_SOURCE_MENTION_BOOST
     if PASTOR_CLIPS_TOPIC in topics:
-        return TRUSTED_INFLUENCER_BOOST * 0.7
+        return PASTOR_CLIP_BOOST
     return 0
 
 
@@ -479,10 +483,18 @@ def ranking_score(
     preferred_topics: UserInterestProfile | set[str] | dict[str, float] | None = None,
 ) -> float:
     profile = coerce_interest_profile(preferred_topics)
+    topics = video_topic_set(video)
+    source_topics = topics.intersection(ALIGNED_SOURCE_TOPIC_SLUGS)
+    ordinary_topics = topics.difference(source_topics)
     topic_affinity = clamp(
-        sum(profile.topic_weights.get(topic, 0) for topic in video_topic_set(video)),
+        sum(profile.topic_weights.get(topic, 0) for topic in ordinary_topics),
         RANK_TOPIC_SIGNAL_MIN,
         RANK_TOPIC_SIGNAL_MAX,
+    )
+    source_affinity = clamp(
+        sum(profile.topic_weights.get(topic, 0) for topic in source_topics),
+        RANK_SOURCE_SIGNAL_MIN,
+        RANK_SOURCE_SIGNAL_MAX,
     )
     creator_affinity = clamp(
         profile.creator_weights.get(video.creator_id, 0),
@@ -498,6 +510,7 @@ def ranking_score(
         + fit_boost * 0.09
         + trusted_influencer_boost(video)
         + topic_affinity
+        + source_affinity
         + creator_affinity
     )
 
@@ -507,6 +520,8 @@ def creator_cap_for_limit(limit: int) -> int:
 
 
 def source_cap_for_limit(limit: int) -> int:
+    if limit <= 12:
+        return 1
     return max(2, ceil(limit * MAX_SOURCE_SHARE))
 
 

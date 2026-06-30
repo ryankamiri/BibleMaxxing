@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field
 
@@ -222,4 +223,20 @@ class AdminAuditPublic(BaseModel):
     target_type: str
     target_id: str
     notes: str | None = None
+    created_at: datetime
+
+
+class EvalRunPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    scorecard_name: str
+    category: str
+    status: str
+    overall_score: float
+    metrics: dict[str, Any]
+    gates: dict[str, Any]
+    notes: list[Any]
+    subject_user_id: str | None = None
+    source: str
     created_at: datetime

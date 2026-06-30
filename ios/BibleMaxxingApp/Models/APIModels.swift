@@ -232,6 +232,7 @@ struct VideoWatchRequest: Codable {
 
 struct Comment: Codable, Identifiable {
     var id: String
+    var userID: String?
     var videoID: String
     var author: User?
     var body: String
@@ -240,6 +241,7 @@ struct Comment: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case userID = "userId"
         case videoID = "videoId"
         case author
         case body
@@ -269,6 +271,63 @@ struct SearchResponse: Codable {
 
 struct FollowRequest: Codable {
     var source: String
+}
+
+struct AdminEvalScorecard: Decodable, Identifiable {
+    var id: String { name }
+    var name: String
+    var overallScore: Double
+    var status: String
+    var metrics: [String: AdminMetricValue]
+    var gates: [String: Bool]
+    var notes: [String]
+    var generatedAt: String?
+}
+
+enum AdminMetricValue: Decodable, Hashable {
+    case bool(Bool)
+    case number(Double)
+    case string(String)
+    case empty
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .empty
+        } else if let bool = try? container.decode(Bool.self) {
+            self = .bool(bool)
+        } else if let int = try? container.decode(Int.self) {
+            self = .number(Double(int))
+        } else if let double = try? container.decode(Double.self) {
+            self = .number(double)
+        } else if let string = try? container.decode(String.self) {
+            self = .string(string)
+        } else {
+            self = .empty
+        }
+    }
+}
+
+struct AdminReport: Decodable, Identifiable {
+    var id: String
+    var reporterId: String
+    var targetType: String
+    var targetId: String
+    var reason: String
+    var details: String?
+    var status: String
+    var createdAt: Date
+    var reviewedAt: Date?
+}
+
+struct AdminReportResolveRequest: Encodable {
+    var status: String
+    var notes: String?
+}
+
+struct AdminModerationUpdateRequest: Encodable {
+    var status: String
+    var notes: String?
 }
 
 enum BibleMaxxingTopics {

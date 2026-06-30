@@ -846,6 +846,7 @@ def admin_recommendation_eval(
     user_id: str | None = None,
     user_email: str | None = Query(default=None, alias="email"),
     limit: int = Query(default=30, ge=1, le=50),
+    save: bool = Query(default=True),
     admin: models.User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -856,26 +857,79 @@ def admin_recommendation_eval(
         target_user = db.scalar(select(models.User).where(models.User.email == user_email))
     if target_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return evals.evaluate_recommendations_for_user(db, target_user, limit=limit).to_dict()
+    scorecard = evals.evaluate_recommendations_for_user(db, target_user, limit=limit)
+    saved_run = (
+        evals.persist_eval_run(
+            db,
+            scorecard,
+            category="recommendation",
+            subject_user_id=target_user.id,
+            source="admin:recommendations",
+        )
+        if save
+        else None
+    )
+    return evals.eval_scorecard_response(scorecard, saved_run)
 
 
 @app.post(f"{API_PREFIX}/admin/evals/ingest/candidates")
 def admin_ingest_candidate_eval(
     payload: schemas.IngestRequest,
+    save: bool = Query(default=True),
     _: models.User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     existing_ids = evals.existing_youtube_ids_for_candidates(db, payload.candidates)
-    return evals.evaluate_ingest_candidates(
+    scorecard = evals.evaluate_ingest_candidates(
         payload.candidates,
         query="admin-candidate-eval",
         existing_youtube_ids=existing_ids,
-    ).to_dict()
+    )
+    saved_run = (
+        evals.persist_eval_run(
+            db,
+            scorecard,
+            category="ingestion",
+            source="admin:ingest-candidates",
+        )
+        if save
+        else None
+    )
+    return evals.eval_scorecard_response(scorecard, saved_run)
 
 
 @app.get(f"{API_PREFIX}/admin/evals/ingest/red-team")
-def admin_red_team_ingest_eval(_: models.User = Depends(require_admin)) -> dict:
-    return evals.evaluate_red_team_ingestion().to_dict()
+def admin_red_team_ingest_eval(
+    save: bool = Query(default=True),
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    scorecard = evals.evaluate_red_team_ingestion()
+    saved_run = (
+        evals.persist_eval_run(
+            db,
+            scorecard,
+            category="ingestion",
+            source="admin:ingest-red-team",
+        )
+        if save
+        else None
+    )
+    return evals.eval_scorecard_response(scorecard, saved_run)
+
+
+@app.get(f"{API_PREFIX}/admin/evals/runs", response_model=list[schemas.EvalRunPublic])
+def admin_eval_runs(
+    category: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.EvalRun]:
+    stmt = select(models.EvalRun)
+    if category:
+        stmt = stmt.where(models.EvalRun.category == category)
+    stmt = stmt.order_by(models.EvalRun.created_at.desc()).limit(limit)
+    return list(db.scalars(stmt))
 
 
 @app.get(f"{API_PREFIX}/admin/reports", response_model=list[schemas.ReportPublic])

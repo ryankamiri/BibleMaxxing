@@ -102,10 +102,10 @@ Record:
    is intentionally internal and cannot resolve/reach YouTube.
 
    A 7200-second cadence is free in dollars but not free in YouTube Data API
-   quota. With the current 10 broad queries plus the default 2 rotating
-   pastor/sermon-clip queries, each full cycle uses 12 `search.list` calls.
-   Track quota before relying on this cadence for continuous production
-   ingestion.
+   quota. Keep `BIBLEMAXXING_YOUTUBE_INGEST_SEARCH_CALLS_PER_CYCLE` budgeted
+   below the daily search-call limit; the default `6` calls every two hours is
+   about `72` `search.list` calls per day and rotates both broad discovery and
+   pastor/source queries over time.
 
 6. Back up TailorTom Caddy before editing:
 

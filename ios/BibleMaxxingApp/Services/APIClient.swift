@@ -201,6 +201,67 @@ final class APIClient {
         try await request("/search", method: "GET", query: [URLQueryItem(name: "q", value: query)])
     }
 
+    func adminRecommendationEval(limit: Int = 30) async throws -> AdminEvalScorecard {
+        try await request(
+            "/admin/evals/recommendations",
+            method: "GET",
+            query: [URLQueryItem(name: "limit", value: String(limit))]
+        )
+    }
+
+    func adminRedTeamIngestEval() async throws -> AdminEvalScorecard {
+        try await request("/admin/evals/ingest/red-team", method: "GET")
+    }
+
+    func adminReports(status: String? = nil, targetType: String? = nil) async throws -> [AdminReport] {
+        var query: [URLQueryItem] = []
+        if let status {
+            query.append(URLQueryItem(name: "status", value: status))
+        }
+        if let targetType {
+            query.append(URLQueryItem(name: "type", value: targetType))
+        }
+        return try await request("/admin/reports", method: "GET", query: query)
+    }
+
+    func resolveAdminReport(reportID: String, status: String, notes: String? = nil) async throws {
+        try await requestEmpty(
+            "/admin/reports/\(reportID.urlPathEscaped)/resolve",
+            method: "POST",
+            body: AdminReportResolveRequest(status: status, notes: notes)
+        )
+    }
+
+    func adminVideos(moderationStatus: String? = nil) async throws -> [FeedVideo] {
+        let query = moderationStatus.map {
+            [URLQueryItem(name: "moderation_status", value: $0)]
+        } ?? []
+        return try await request("/admin/videos", method: "GET", query: query)
+    }
+
+    func adminComments(moderationStatus: String? = nil) async throws -> [Comment] {
+        let query = moderationStatus.map {
+            [URLQueryItem(name: "moderation_status", value: $0)]
+        } ?? []
+        return try await request("/admin/comments", method: "GET", query: query)
+    }
+
+    func moderateAdminVideo(videoID: String, status: String, notes: String? = nil) async throws {
+        try await requestEmpty(
+            "/admin/videos/\(videoID.urlPathEscaped)/moderation",
+            method: "PATCH",
+            body: AdminModerationUpdateRequest(status: status, notes: notes)
+        )
+    }
+
+    func moderateAdminComment(commentID: String, status: String, notes: String? = nil) async throws {
+        try await requestEmpty(
+            "/admin/comments/\(commentID.urlPathEscaped)/moderation",
+            method: "PATCH",
+            body: AdminModerationUpdateRequest(status: status, notes: notes)
+        )
+    }
+
     private func request<T: Decodable>(_ path: String, method: String, query: [URLQueryItem] = []) async throws -> T {
         let request = try makeRequest(path: path, method: method, query: query, body: Optional<Data>.none)
         return try await execute(request)

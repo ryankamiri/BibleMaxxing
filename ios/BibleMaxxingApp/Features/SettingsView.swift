@@ -24,6 +24,17 @@ struct SettingsView: View {
                     Label("Reports and blocks help keep the feed safe.", systemImage: "shield")
                 }
 
+                if session.currentUser?.isAdmin == true {
+                    Section("Admin") {
+                        NavigationLink {
+                            AdminView()
+                                .environmentObject(session)
+                        } label: {
+                            Label("Admin dashboard", systemImage: "shield.lefthalf.filled")
+                        }
+                    }
+                }
+
                 Section {
                     Button {
                         Task {

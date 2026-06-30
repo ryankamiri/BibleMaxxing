@@ -27,6 +27,8 @@ class Settings(BaseSettings):
         "Matt Chandler sermon clips"
     )
     youtube_ingest_pastor_queries_per_cycle: int = 2
+    youtube_ingest_search_calls_per_cycle: int = 6
+    youtube_ingest_daily_search_call_budget: int = 96
     youtube_ingest_max_results: int = 25
     youtube_ingest_interval_seconds: int = 60 * 60 * 2
     youtube_ingest_default_approve: bool = True

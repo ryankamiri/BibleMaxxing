@@ -31,6 +31,11 @@ through `videos.list`:
 
 The implementation lives in `backend/app/evals.py`.
 
+Each admin-triggered eval run is also persisted in the backend database in
+`eval_runs`. Stored history includes the scorecard name, category, status,
+overall score, metrics JSON, gates JSON, notes JSON, optional subject user,
+source, and creation timestamp.
+
 ### Recommendation Feed
 
 `evaluate_recommendations_for_user(db, user, limit)` calls the real
@@ -56,6 +61,10 @@ Hard gates:
 - no creator dominates more than `35%` of the feed
 - no aligned preacher/source dominates more than `35%` of the feed
 - no back-to-back aligned source repeats
+
+Fresh app feeds of 12 or fewer videos use a stricter source/person cap in the
+reranker so one aligned preacher, such as Philip Anthony Mitchell clips
+reposted across many channels, cannot crowd the first screen.
 
 ### YouTube Ingestion Candidates
 
@@ -86,7 +95,8 @@ Hard gates:
 ### Query Plan
 
 `evaluate_query_plan(settings, queries)` verifies the worker uses both broad
-Christian discovery queries and the rotating pastor/source lane.
+Christian discovery queries and the rotating pastor/source lane while staying
+inside configured per-cycle and estimated daily YouTube search-call budgets.
 
 ## How To Run
 
@@ -130,8 +140,12 @@ Admins can run:
 - `GET /biblemaxxing/api/v1/admin/evals/recommendations?email=...&limit=30`
 - `POST /biblemaxxing/api/v1/admin/evals/ingest/candidates`
 - `GET /biblemaxxing/api/v1/admin/evals/ingest/red-team`
+- `GET /biblemaxxing/api/v1/admin/evals/runs?limit=50`
 
-These endpoints do not mutate feed or ingestion state.
+Eval execution endpoints save an `eval_runs` row by default and return
+`saved=true` plus `saved_run_id`. Pass `save=false` to run a scorecard without
+adding history. The recent-runs endpoint is admin-only and can be filtered with
+`category=recommendation` or `category=ingestion`.
 
 ## Worker Behavior
 
