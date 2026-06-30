@@ -229,3 +229,15 @@ Reviewed: 2026-06-30
   ryankamiri@icloud.com (LWASV7VRQ6)`. App Store distribution signing/upload
   still requires the friend's Apple Developer team credentials or App Store
   Connect access.
+
+## App Review Account Verification
+
+- At `2026-06-30 22:07:38 UTC`, the production App Review account
+  `ryanamiri05+appreview@gmail.com` was reset to a fresh private password,
+  forced to username `appreview`, kept as a non-admin user, and confirmed with
+  `onboarding_completed = true`.
+- A live login probe for the review account returned HTTP `200`, confirmed the
+  account is non-admin and already onboarded, then fetched `/feed?limit=8` with
+  `8` video items returned.
+- Do not commit the review password. Provide it privately in App Store Connect
+  review notes only.
