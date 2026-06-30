@@ -141,6 +141,9 @@ Reviewed: 2026-06-30
   exactly one `philip-anthony-mitchell` source item, no repeated creators,
   max creator share `0.0833`, max aligned source share `0.0833`, recommendation
   eval status `healthy`, and score `91.66`.
+- The latest iOS app, including the admin page, was built for Ryan's connected
+  iPhone 17 Pro Max (`0E6487E2-0018-5DF6-9541-F0099E1FEBAE`), installed, and
+  launched with bundle id `com.ryanamiri.biblemaxxing`.
 
 ## Remaining Manual Checks
 
