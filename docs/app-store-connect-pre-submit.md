@@ -157,6 +157,7 @@ Current local candidate folder:
 Current generated iPhone 17 candidates:
 
 - `docs/app-store-assets/screenshots/iphone17-auth-login.png`
+- `docs/app-store-assets/screenshots/iphone17-onboarding-topics.png`
 - `docs/app-store-assets/screenshots/iphone17-feed-tap-to-start.png`
 - `docs/app-store-assets/screenshots/iphone17-comments-empty.png`
 - `docs/app-store-assets/screenshots/iphone17-settings-legal.png`
@@ -200,3 +201,13 @@ xcodebuild -project ios/BibleMaxxing.xcodeproj \
 External blocker: this machine cannot complete App Store distribution signing
 under the friend's Apple team until that team is selected in Xcode and valid
 certificates/profiles are available.
+
+Current local archive evidence:
+
+- A Release archive succeeded locally at
+  `/tmp/BibleMaxxingArchive/BibleMaxxing.xcarchive`.
+- Bundle ID in the archive: `com.ryanamiri.biblemaxxing`.
+- Signing identity in the archive: `Apple Development:
+  ryankamiri@icloud.com (LWASV7VRQ6)`.
+- This proves the project can archive, but it is not an App Store distribution
+  archive and cannot replace the friend's Apple Developer team signing/upload.

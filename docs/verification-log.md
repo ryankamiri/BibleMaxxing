@@ -184,9 +184,16 @@ Reviewed: 2026-06-30
 - Generated iPhone 17 App Store screenshot candidates live in
   `docs/app-store-assets/screenshots/`:
   - `iphone17-auth-login.png`
+  - `iphone17-onboarding-topics.png`
   - `iphone17-feed-tap-to-start.png`
   - `iphone17-comments-empty.png`
   - `iphone17-settings-legal.png`
 - The current build hides the visible Sign in with Apple button until the
   backend Apple credential exchange is configured, preventing a review-visible
   501 flow while preserving the future code path.
+- A local Release archive succeeded at
+  `/tmp/BibleMaxxingArchive/BibleMaxxing.xcarchive` with bundle id
+  `com.ryanamiri.biblemaxxing` and signing identity `Apple Development:
+  ryankamiri@icloud.com (LWASV7VRQ6)`. This validates archiveability but does
+  not satisfy the still-external App Store distribution-signing/upload step
+  under the friend's Apple Developer team.
