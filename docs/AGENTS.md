@@ -32,6 +32,9 @@ Maintain docs for:
 - `qa-checklist.md` tracks final CTO verification steps.
 - `verification-log.md` records commands and live deployment evidence from completed checkpoints.
 
+When production worker cadence, ingestion counts, admin state, or VPS health is
+verified, update `verification-log.md` with UTC timestamps and counts.
+
 ## Privacy
 
 - Do not include secrets, cookies, private keys, raw tokens, or private account data in docs.

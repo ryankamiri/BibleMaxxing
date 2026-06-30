@@ -1,6 +1,6 @@
 # BibleMaxxing Agent Guide
 
-BibleMaxxing is a personal iOS prototype intended to replace Instagram Reels with a Christian short-video feed. The motto is: "Don't brainrot. BibleMax."
+BibleMaxxing is a personal-first iOS app intended to replace compulsive short-video scrolling with a Christian short-video feed. The motto is: "Don't brainrot. BibleMax."
 
 The product goal is to help Ryan become more like Christ at work and in life by replacing compulsive scrolling with explicitly Christian short-form content, reflection, Scripture, and a feed algorithm that resists addictive loops.
 
@@ -65,7 +65,7 @@ Future creator uploads are allowed as an architecture consideration only. When i
 
 ## Product Requirements
 
-- Login before feed for the personal prototype.
+- Login before feed.
 - Build Sign in with Apple code paths as App-Store-ready, even if full use requires an Apple Developer account later.
 - Email/password auth is required. Username and email are required. Phone is not collected.
 - Passwords must be securely hashed.

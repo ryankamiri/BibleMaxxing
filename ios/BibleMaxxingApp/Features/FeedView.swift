@@ -33,7 +33,6 @@ struct FeedView: View {
                     .scrollTargetBehavior(.paging)
                     .scrollIndicators(.hidden)
                     .scrollPosition(id: $viewModel.currentItemID)
-                    .ignoresSafeArea()
                 }
 
                 FeedChrome(
@@ -45,6 +44,14 @@ struct FeedView: View {
                         showSettings = true
                     }
                 )
+
+                VStack {
+                    Spacer()
+                    Color.black
+                        .frame(height: 32)
+                        .ignoresSafeArea(edges: .bottom)
+                }
+                .allowsHitTesting(false)
             }
         }
         .task {
@@ -148,56 +155,70 @@ private struct VideoFeedPage: View {
     @EnvironmentObject private var session: SessionStore
 
     var body: some View {
-        ZStack {
-            if viewModel.isPrepared(itemID: item.id) {
-                YouTubePlayerView(
-                    videoID: video.youtubeVideoID,
-                    playerURL: session.apiClient.youtubePlayerPageURL(
-                        videoID: video.youtubeVideoID,
-                        autoplay: isActive && viewModel.didTapStart
-                    ),
-                    isActive: isActive,
-                    shouldAutoplay: viewModel.didTapStart
-                )
-            } else {
-                ThumbnailPlaceholder(url: video.thumbnailURL)
-            }
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Group {
+                    if viewModel.isPrepared(itemID: item.id) {
+                        ZStack {
+                            YouTubePlayerView(
+                                videoID: video.youtubeVideoID,
+                                playerURL: session.apiClient.youtubePlayerPageURL(
+                                    videoID: video.youtubeVideoID,
+                                    autoplay: isActive && viewModel.didTapStart
+                                ),
+                                isActive: isActive,
+                                shouldAutoplay: viewModel.didTapStart
+                            )
 
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.35), .black.opacity(0.86)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            HStack(alignment: .bottom, spacing: 14) {
-                VideoMetadataView(video: video, item: item) { slug in
-                    Task { await viewModel.followTopic(slug) }
+                            if !viewModel.didTapStart {
+                                ThumbnailPlaceholder(url: video.thumbnailURL)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    } else {
+                        ThumbnailPlaceholder(url: video.thumbnailURL)
+                    }
                 }
-                .padding(.leading, 18)
-                .padding(.bottom, 30)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
 
-                Spacer(minLength: 8)
-
-                ActionRail(
-                    isLiked: item.isLiked ?? false,
-                    isSaved: item.isSaved ?? false,
-                    isCreatorFollowed: item.isCreatorFollowed ?? video.creator?.isFollowed ?? false,
-                    onLike: { Task { await viewModel.toggleLike(itemID: item.id) } },
-                    onSave: { Task { await viewModel.toggleSave(itemID: item.id) } },
-                    onComment: { viewModel.commentsVideo = video },
-                    onNotInterested: { Task { await viewModel.markNotInterested(itemID: item.id) } },
-                    onReport: { viewModel.pendingReport = .video(video) },
-                    onBlock: { Task { await viewModel.blockCreator(for: item.id) } },
-                    onFollowCreator: { Task { await viewModel.toggleCreatorFollow(itemID: item.id) } }
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.38), .black.opacity(0.9)],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                .padding(.trailing, 12)
-                .padding(.bottom, 28)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .frame(height: min(360, proxy.size.height * 0.56))
+                .allowsHitTesting(false)
 
-            if isActive && !viewModel.didTapStart {
-                TapToStartOverlay {
-                    Task { await viewModel.startPlayback() }
+                HStack(alignment: .bottom, spacing: 12) {
+                    VideoMetadataView(video: video, item: item) { slug in
+                        Task { await viewModel.followTopic(slug) }
+                    }
+                    .frame(maxWidth: max(210, proxy.size.width - 104), alignment: .leading)
+
+                    Spacer(minLength: 6)
+
+                    ActionRail(
+                        isLiked: item.isLiked ?? false,
+                        isSaved: item.isSaved ?? false,
+                        isCreatorFollowed: item.isCreatorFollowed ?? video.creator?.isFollowed ?? false,
+                        onLike: { Task { await viewModel.toggleLike(itemID: item.id) } },
+                        onSave: { Task { await viewModel.toggleSave(itemID: item.id) } },
+                        onComment: { viewModel.commentsVideo = video },
+                        onNotInterested: { Task { await viewModel.markNotInterested(itemID: item.id) } },
+                        onReport: { viewModel.pendingReport = .video(video) },
+                        onBlock: { Task { await viewModel.blockCreator(for: item.id) } },
+                        onFollowCreator: { Task { await viewModel.toggleCreatorFollow(itemID: item.id) } }
+                    )
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 54)
+
+                if isActive && !viewModel.didTapStart {
+                    TapToStartOverlay {
+                        Task { await viewModel.startPlayback() }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
                 }
             }
         }
@@ -215,13 +236,13 @@ private struct VideoMetadataView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(video.title)
+            Text(displayTitle)
                 .font(.title3.weight(.bold))
                 .lineLimit(3)
                 .shadow(radius: 8)
 
             HStack(spacing: 8) {
-                Text("@\(video.creator?.handle ?? video.creator?.displayName ?? "creator")")
+                Text(creatorText)
                     .font(.subheadline.weight(.semibold))
 
                 if let sourceURL = video.sourceURL {
@@ -233,28 +254,29 @@ private struct VideoMetadataView: View {
                 }
             }
 
-            if let reason = item.reason {
+            if let reason = displayReason {
                 Text(reason)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.78))
                     .lineLimit(2)
             }
 
-            if let topicSlugs = video.topics, !topicSlugs.isEmpty {
+            let topics = displayTopics
+            if !topics.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(topicSlugs, id: \.self) { slug in
+                        ForEach(topics, id: \.slug) { topic in
                             Button {
-                                onFollowTopic(slug)
+                                onFollowTopic(topic.slug)
                             } label: {
-                                Label(slug.replacingOccurrences(of: "-", with: " "), systemImage: "plus")
+                                Label(topic.name, systemImage: "plus")
                                     .font(.caption.weight(.bold))
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 7)
                                     .background(.white.opacity(0.16), in: Capsule())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Follow topic \(slug)")
+                            .accessibilityLabel("Follow topic \(topic.name)")
                         }
                     }
                 }
@@ -263,6 +285,41 @@ private struct VideoMetadataView: View {
         .foregroundStyle(.white)
         .frame(maxWidth: 310, alignment: .leading)
     }
+
+    private var displayTitle: String {
+        let withoutHashtags = video.title.replacingOccurrences(
+            of: #"\s*#\S+"#,
+            with: "",
+            options: .regularExpression
+        )
+        return withoutHashtags.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var creatorText: String {
+        if let handle = video.creator?.handle?.cleanHandle, !handle.isEmpty {
+            return "@\(handle)"
+        }
+        return video.creator?.displayName ?? "Creator"
+    }
+
+    private var displayReason: String? {
+        guard let reason = item.reason?.lowercased(), !reason.isEmpty else { return nil }
+        if reason.contains("pause") || reason.contains("scroll") {
+            return "A short pause to refocus on Christ."
+        }
+        return "Recommended for your walk with Christ."
+    }
+
+    private var displayTopics: [DisplayTopic] {
+        (video.topics ?? [])
+            .prefix(4)
+            .map { DisplayTopic(slug: $0, name: $0.topicDisplayName) }
+    }
+}
+
+private struct DisplayTopic: Hashable {
+    let slug: String
+    let name: String
 }
 
 private struct TapToStartOverlay: View {
@@ -273,9 +330,9 @@ private struct TapToStartOverlay: View {
             VStack(spacing: 12) {
                 Image(systemName: "speaker.wave.2.circle.fill")
                     .font(.system(size: 56, weight: .semibold))
-                Text("Tap to Start")
+                Text("Tap to start")
                     .font(.title2.weight(.black))
-                Text("Sound starts after your tap. Swipes autoplay from here.")
+                Text("Sound begins after your tap. Swiping will continue playback.")
                     .font(.footnote.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.82))
@@ -342,7 +399,7 @@ private struct ReflectionFeedPage: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 if let trigger = reflection.trigger {
-                    Text("Shown because: \(trigger)")
+                    Text("Paused after \(trigger).")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
@@ -380,7 +437,7 @@ struct CommentsSheet: View {
                     ProgressView("Loading comments")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if comments.isEmpty {
-                    ContentUnavailableView("No comments yet", systemImage: "bubble.right", description: Text("Start a moderated conversation."))
+                    ContentUnavailableView("No comments yet", systemImage: "bubble.right", description: Text("Start a thoughtful conversation."))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(comments) { comment in
@@ -398,7 +455,7 @@ struct CommentsSheet: View {
                             }
                             Text(comment.body)
                                 .font(.body)
-                            Text(comment.moderationStatus ?? "pending moderation")
+                            Text(comment.statusText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -416,9 +473,21 @@ struct CommentsSheet: View {
                 }
 
                 HStack(spacing: 10) {
-                    TextField("Add a moderated comment", text: $draft, axis: .vertical)
+                    TextField(text: $draft, axis: .vertical) {
+                        Text("Add a thoughtful comment")
+                            .foregroundStyle(.white.opacity(0.48))
+                    }
                         .lineLimit(1...4)
-                        .textFieldStyle(.roundedBorder)
+                        .textInputAutocapitalization(.sentences)
+                        .autocorrectionDisabled(false)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.white.opacity(0.12))
+                        )
                     Button {
                         Task { await submitComment() }
                     } label: {
@@ -465,7 +534,7 @@ struct CommentsSheet: View {
     private func report(_ comment: Comment) async {
         do {
             try await session.apiClient.reportComment(commentID: comment.id, reason: "reported_from_comment_sheet", notes: nil)
-            errorMessage = "Comment report sent."
+            errorMessage = "Report sent. Thank you for helping keep the feed safe."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -552,6 +621,39 @@ struct ReportTarget: Identifiable {
     }
 }
 
+private extension Comment {
+    var statusText: String {
+        guard let moderationStatus, !moderationStatus.isEmpty else {
+            return "Under review"
+        }
+
+        switch moderationStatus {
+        case "approved":
+            return "Visible"
+        case "hidden":
+            return "Hidden"
+        default:
+            return "Under review"
+        }
+    }
+}
+
+private extension String {
+    var cleanHandle: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+    }
+
+    var topicDisplayName: String {
+        split(separator: "-")
+            .map { word in
+                let lowered = word.lowercased()
+                return lowered.prefix(1).uppercased() + String(lowered.dropFirst())
+            }
+            .joined(separator: " ")
+    }
+}
+
 @MainActor
 final class FeedViewModel: ObservableObject {
     @Published var items: [FeedItem] = []
@@ -588,7 +690,7 @@ final class FeedViewModel: ObservableObject {
 
             if items.isEmpty {
                 items = SampleData.fallbackFeed
-                errorMessage = "Feed returned empty; showing local scaffold items."
+                errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
             }
 
             currentItemID = items.first?.id
@@ -596,7 +698,7 @@ final class FeedViewModel: ObservableObject {
         } catch {
             items = SampleData.fallbackFeed
             currentItemID = items.first?.id
-            errorMessage = "API feed unavailable; showing local scaffold items."
+            errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
         }
     }
 
@@ -689,7 +791,7 @@ final class FeedViewModel: ObservableObject {
     func followTopic(_ slug: String) async {
         do {
             try await apiClient?.followTopic(slug: slug)
-            errorMessage = "Following \(slug.replacingOccurrences(of: "-", with: " "))."
+            errorMessage = "Following \(slug.topicDisplayName)."
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -716,7 +818,7 @@ final class FeedViewModel: ObservableObject {
             case .comment:
                 try await apiClient?.reportComment(commentID: target.resourceID, reason: reason, notes: notes)
             }
-            errorMessage = "Report sent for moderation."
+            errorMessage = "Report sent. Thank you for helping keep the feed safe."
         } catch {
             errorMessage = error.localizedDescription
         }

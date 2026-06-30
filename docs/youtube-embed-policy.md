@@ -13,6 +13,8 @@ It must not become a downloader, transcoder, cache, or shadow video host.
 - YouTube embedded player parameters: https://developers.google.com/youtube/player_parameters
 - YouTube Data API `videos.list`: https://developers.google.com/youtube/v3/docs/videos/list
 - YouTube Data API `search.list`: https://developers.google.com/youtube/v3/docs/search/list
+- YouTube Data API quota costs:
+  https://developers.google.com/youtube/v3/determine_quota_cost
 
 ## Allowed In V1
 
@@ -86,6 +88,14 @@ attribution_text
 
 The ingestion worker should refresh source metadata periodically and treat stale
 or unavailable source status as a feed exclusion until revalidated.
+
+## Quota Notes
+
+The YouTube Data API is financially free for the current ingestion worker, but
+it is quota-limited. `search.list` calls cost 100 quota units each under
+YouTube's quota table, so a 10-query cycle every 2 hours can exceed the default
+daily quota unless the project has more quota approved or the query set is
+reduced.
 
 ## User-Facing Attribution
 

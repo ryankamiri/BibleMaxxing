@@ -7,7 +7,7 @@ struct OnboardingView: View {
     @State private var isSubmitting = false
 
     private let columns = [
-        GridItem(.adaptive(minimum: 136), spacing: 10)
+        GridItem(.adaptive(minimum: 142), spacing: 10)
     ]
 
     var body: some View {
@@ -121,11 +121,12 @@ private struct TopicChip: View {
             HStack(spacing: 8) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 Text(title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.86)
             }
             .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 42)
+            .frame(maxWidth: .infinity, minHeight: 52)
             .padding(.horizontal, 12)
             .background(isSelected ? Color.white : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             .foregroundStyle(isSelected ? Color.black : Color.white)

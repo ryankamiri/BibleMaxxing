@@ -300,7 +300,7 @@ enum SampleData {
                 scriptureReference: "Colossians 3:17",
                 body: "Whatever you do, receive it as a chance to belong to Christ in the ordinary details.",
                 prompt: "Name one work or life moment today where you want to be more like Him.",
-                trigger: "sample"
+                trigger: nil
             ),
             impressionID: nil,
             reason: "Reflection cards interrupt binge-like loops.",

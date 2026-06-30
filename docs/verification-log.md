@@ -72,11 +72,16 @@ Reviewed: 2026-06-30
   and completed a cycle at `2026-06-30 13:28:58 UTC`, creating 8 records and
   skipping 242 duplicates or filtered candidates. The next sleep interval logged
   as 7200 seconds.
+- The production user `ryanamiri05@gmail.com` was idempotently promoted to admin
+  again, then the production worker was force-recreated and completed an
+  immediate cycle at `2026-06-30 13:53:57 UTC`, creating 15 records and
+  skipping 235 duplicates or filtered candidates. The next sleep interval logged
+  as 7200 seconds.
 - Production video inventory after live ingestion:
-  - approved: `258`
+  - approved: `273`
   - hidden: `3`
-  - total: `261`
-  - distinct approved creators: `167`
+  - total: `276`
+  - distinct approved creators: `176`
 - Production sample inventory still includes the three approved BibleProject
   seed videos:
   - `p7XRPGzL6kk`: `Who is Jesus?`

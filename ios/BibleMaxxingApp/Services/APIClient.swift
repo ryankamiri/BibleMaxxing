@@ -8,11 +8,14 @@ enum APIClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "The API URL could not be built."
+            return "We couldn't prepare that request. Please try again."
         case .invalidResponse:
-            return "The API returned an invalid response."
+            return "We couldn't read the server response. Please try again."
         case let .server(statusCode, message):
-            return "API error \(statusCode): \(message)"
+            if statusCode >= 500 {
+                return "BibleMaxxing is having trouble right now. Please try again."
+            }
+            return message.isEmpty ? "We couldn't complete that request. Please try again." : message
         }
     }
 }

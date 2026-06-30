@@ -18,10 +18,10 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Feed posture") {
-                    Label("YouTube videos play through the official embedded player.", systemImage: "play.rectangle")
-                    Label("Saves are in-app bookmarks only.", systemImage: "bookmark")
-                    Label("Reports and blocks are sent to moderation endpoints.", systemImage: "shield")
+                Section("Playback and safety") {
+                    Label("Videos play from YouTube with source attribution.", systemImage: "play.rectangle")
+                    Label("Saves stay inside BibleMaxxing.", systemImage: "bookmark")
+                    Label("Reports and blocks help keep the feed safe.", systemImage: "shield")
                 }
 
                 Section {
@@ -75,7 +75,7 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This calls the backend account deletion endpoint and removes the local session token.")
+                Text("This permanently deletes your account and signs you out on this device.")
             }
         }
         .preferredColorScheme(.dark)

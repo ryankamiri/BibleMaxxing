@@ -259,9 +259,11 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
         videoId: videoID,
         playerVars: {
           autoplay: shouldAutoplay ? 1 : 0,
-          controls: 1,
+          controls: 0,
           enablejsapi: 1,
           fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
           origin: window.location.origin,
           playsinline: 1,
           rel: 0,

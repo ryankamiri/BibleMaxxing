@@ -16,7 +16,7 @@ struct AuthView: View {
             Color.black.ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("BibleMaxxing")
                             .font(.system(size: 44, weight: .black, design: .rounded))
@@ -24,9 +24,9 @@ struct AuthView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 44)
+                    .padding(.top, 34)
 
-                    VStack(spacing: 16) {
+                    VStack(spacing: 13) {
                         Picker("Mode", selection: $mode) {
                             ForEach(AuthMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
@@ -44,13 +44,13 @@ struct AuthView: View {
                                 displayedComponents: .date
                             )
                             .datePickerStyle(.compact)
-                            .padding(14)
+                            .padding(13)
                             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                             .accessibilityLabel("Birthday")
 
-                            HStack {
+                            HStack(spacing: 6) {
                                 Image(systemName: "checkmark.shield")
-                                Text("13+ age gate")
+                                Text("Ages 13 and up")
                             }
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -77,7 +77,7 @@ struct AuthView: View {
                                     .fontWeight(.bold)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 15)
+                            .padding(.vertical, 14)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.white)
@@ -86,16 +86,16 @@ struct AuthView: View {
 
                         SignInWithAppleButton(.signIn, onRequest: configureAppleRequest, onCompletion: handleAppleCompletion)
                             .signInWithAppleButtonStyle(.whiteOutline)
-                            .frame(height: 48)
+                            .frame(height: 46)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .padding(18)
+                    .padding(16)
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Built for a 13+ personal prototype.")
+                        Text("Ages 13 and up.")
                             .font(.footnote.weight(.semibold))
-                        Text("Email, username, and password are used for the app account. Phone numbers are not collected.")
+                        Text("We use your email to secure your account. Phone numbers are never collected.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -108,8 +108,9 @@ struct AuthView: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.bottom, 96)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 
@@ -175,7 +176,7 @@ private struct AuthField: View {
             .textContentType(contentType)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .padding(14)
+            .padding(13)
             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -189,9 +190,9 @@ private enum AuthMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .login:
-            return "Login"
+            return "Log in"
         case .register:
-            return "Register"
+            return "Create account"
         }
     }
 

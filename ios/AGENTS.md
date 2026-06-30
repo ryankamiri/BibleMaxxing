@@ -27,7 +27,7 @@ Read the root `AGENTS.md` before changing anything here.
 
 ## Required UX
 
-- Login before feed for the personal prototype.
+- Login before feed.
 - Onboarding before first feed.
 - Double tap to like.
 - In-app save/bookmark.
