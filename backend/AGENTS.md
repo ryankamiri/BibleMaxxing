@@ -99,6 +99,12 @@ Use:
 
 Watch time is a bounded signal, not the master objective.
 
+The active v1 recommender builds a per-user interest profile at feed time from
+onboarding topics, followed topics/creators, likes, saves, not-interested rows,
+skips, completions, bounded watch time, and rewatches. Keep passive watch-time
+weights smaller than explicit signals like follows, likes, saves, and
+not-interested.
+
 Do not hard-ban landscape videos solely for format. Prefer Shorts-like,
 screen-filling videos in ranking, but allow safe and spiritually useful
 landscape videos to remain eligible.

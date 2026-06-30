@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, or_, select
@@ -63,6 +64,14 @@ ALIGNED_SOURCE_TOPICS = {
 TRUSTED_INFLUENCER_TOPIC = "trusted-influencer"
 PASTOR_CLIPS_TOPIC = "pastor-clips"
 TRUSTED_INFLUENCER_BOOST = 0.22
+TOPIC_WEIGHT_MIN = -0.35
+TOPIC_WEIGHT_MAX = 0.42
+CREATOR_WEIGHT_MIN = -0.24
+CREATOR_WEIGHT_MAX = 0.28
+RANK_TOPIC_SIGNAL_MIN = -0.22
+RANK_TOPIC_SIGNAL_MAX = 0.28
+RANK_CREATOR_SIGNAL_MIN = -0.14
+RANK_CREATOR_SIGNAL_MAX = 0.18
 
 EXCLUDED_KEYWORDS = {
     "mormon",
@@ -75,6 +84,16 @@ EXCLUDED_KEYWORDS = {
     "law of attraction",
     "rapture chart",
 }
+
+
+@dataclass
+class UserInterestProfile:
+    topic_weights: dict[str, float] = field(default_factory=dict)
+    creator_weights: dict[str, float] = field(default_factory=dict)
+
+
+def clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
 
 
 def unique_preserving_order(values: list[str]) -> list[str]:
@@ -120,6 +139,43 @@ def reel_fit_score(
 def slugify(value: str) -> str:
     cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in value)
     return "-".join(part for part in cleaned.split("-") if part)
+
+
+def normalize_topic(value: str) -> str:
+    return slugify(value)
+
+
+def video_topic_set(video: models.Video) -> set[str]:
+    return {topic for topic in (normalize_topic(value) for value in video.topics or []) if topic}
+
+
+def bump_weight(
+    weights: dict[str, float],
+    key: str | None,
+    delta: float,
+    lower: float,
+    upper: float,
+) -> None:
+    if not key:
+        return
+    weights[key] = clamp(weights.get(key, 0) + delta, lower, upper)
+
+
+def apply_video_feedback(
+    profile: UserInterestProfile,
+    video: models.Video,
+    topic_delta: float,
+    creator_delta: float,
+) -> None:
+    for topic in video_topic_set(video):
+        bump_weight(profile.topic_weights, topic, topic_delta, TOPIC_WEIGHT_MIN, TOPIC_WEIGHT_MAX)
+    bump_weight(
+        profile.creator_weights,
+        video.creator_id,
+        creator_delta,
+        CREATOR_WEIGHT_MIN,
+        CREATOR_WEIGHT_MAX,
+    )
 
 
 def classify_candidate(candidate: YouTubeCandidate) -> tuple[bool, list[str], float, float]:
@@ -277,9 +333,137 @@ def trusted_influencer_boost(video: models.Video) -> float:
     return 0
 
 
-def ranking_score(video: models.Video, preferred_topics: set[str] | None = None) -> float:
-    preferences = preferred_topics or set()
-    topic_boost = len(preferences.intersection(set(video.topics or []))) * 0.15
+def interest_profile_from_topics(preferred_topics: set[str] | None = None) -> UserInterestProfile:
+    profile = UserInterestProfile()
+    for topic in preferred_topics or set():
+        normalized = normalize_topic(topic)
+        bump_weight(profile.topic_weights, normalized, 0.15, TOPIC_WEIGHT_MIN, TOPIC_WEIGHT_MAX)
+    return profile
+
+
+def user_interest_profile(db: Session, user: models.User) -> UserInterestProfile:
+    profile = UserInterestProfile()
+
+    preference = db.scalar(
+        select(models.OnboardingPreference).where(models.OnboardingPreference.user_id == user.id)
+    )
+    for topic in preference.topics if preference else []:
+        bump_weight(
+            profile.topic_weights,
+            normalize_topic(topic),
+            0.14,
+            TOPIC_WEIGHT_MIN,
+            TOPIC_WEIGHT_MAX,
+        )
+
+    follows = db.scalars(select(models.Follow).where(models.Follow.user_id == user.id))
+    for follow in follows:
+        if follow.target_type == "topic":
+            bump_weight(
+                profile.topic_weights,
+                normalize_topic(follow.target_id),
+                0.18,
+                TOPIC_WEIGHT_MIN,
+                TOPIC_WEIGHT_MAX,
+            )
+        elif follow.target_type == "creator":
+            bump_weight(
+                profile.creator_weights,
+                follow.target_id,
+                0.18,
+                CREATOR_WEIGHT_MIN,
+                CREATOR_WEIGHT_MAX,
+            )
+
+    liked_videos = db.scalars(
+        select(models.Video)
+        .options(joinedload(models.Video.creator))
+        .join(models.Like, models.Like.video_id == models.Video.id)
+        .where(models.Like.user_id == user.id)
+    )
+    for video in liked_videos:
+        apply_video_feedback(profile, video, topic_delta=0.10, creator_delta=0.08)
+
+    saved_videos = db.scalars(
+        select(models.Video)
+        .options(joinedload(models.Video.creator))
+        .join(models.Save, models.Save.video_id == models.Video.id)
+        .where(models.Save.user_id == user.id)
+    )
+    for video in saved_videos:
+        apply_video_feedback(profile, video, topic_delta=0.12, creator_delta=0.10)
+
+    not_interested_videos = db.scalars(
+        select(models.Video)
+        .options(joinedload(models.Video.creator))
+        .join(models.NotInterested, models.NotInterested.video_id == models.Video.id)
+        .where(models.NotInterested.user_id == user.id)
+    )
+    for video in not_interested_videos:
+        apply_video_feedback(profile, video, topic_delta=-0.26, creator_delta=-0.16)
+
+    watch_rows = db.execute(
+        select(models.WatchEvent, models.Video)
+        .join(models.Video, models.Video.id == models.WatchEvent.video_id)
+        .options(joinedload(models.Video.creator))
+        .where(models.WatchEvent.user_id == user.id)
+    )
+    watched_video_signals: dict[str, tuple[models.Video, float]] = {}
+    for watch_event, video in watch_rows:
+        event_type = watch_event.event_type.lower()
+        if event_type == "skip" or (
+            watch_event.percent_complete < 0.2 and watch_event.seconds_watched <= 5
+        ):
+            signal = -0.08
+        else:
+            completion_signal = 0.035 if watch_event.percent_complete >= 0.75 else 0
+            rewatch_signal = 0.025 if watch_event.rewatched else 0
+            watch_time_signal = min(watch_event.seconds_watched, 180) / 180 * 0.025
+            signal = completion_signal + rewatch_signal + watch_time_signal
+
+        _, previous_signal = watched_video_signals.get(video.id, (video, 0))
+        if abs(signal) > abs(previous_signal):
+            watched_video_signals[video.id] = (video, signal)
+
+    for video, signal in watched_video_signals.values():
+        apply_video_feedback(profile, video, topic_delta=signal, creator_delta=signal * 0.45)
+
+    return profile
+
+
+def coerce_interest_profile(
+    profile_or_topics: UserInterestProfile | set[str] | dict[str, float] | None,
+) -> UserInterestProfile:
+    if profile_or_topics is None:
+        return UserInterestProfile()
+    if isinstance(profile_or_topics, UserInterestProfile):
+        return profile_or_topics
+    if isinstance(profile_or_topics, dict):
+        return UserInterestProfile(
+            topic_weights={
+                normalize_topic(topic): weight
+                for topic, weight in profile_or_topics.items()
+                if normalize_topic(topic)
+            }
+        )
+    return interest_profile_from_topics(profile_or_topics)
+
+
+def ranking_score(
+    video: models.Video,
+    preferred_topics: UserInterestProfile | set[str] | dict[str, float] | None = None,
+) -> float:
+    profile = coerce_interest_profile(preferred_topics)
+    topic_affinity = clamp(
+        sum(profile.topic_weights.get(topic, 0) for topic in video_topic_set(video)),
+        RANK_TOPIC_SIGNAL_MIN,
+        RANK_TOPIC_SIGNAL_MAX,
+    )
+    creator_affinity = clamp(
+        profile.creator_weights.get(video.creator_id, 0),
+        RANK_CREATOR_SIGNAL_MIN,
+        RANK_CREATOR_SIGNAL_MAX,
+    )
     fit_boost = reel_fit_score(video.duration_seconds, video.title, video.description, video.tags)
     return (
         video.spiritual_score * 0.32
@@ -288,15 +472,13 @@ def ranking_score(video: models.Video, preferred_topics: set[str] | None = None)
         + video.freshness_score * 0.09
         + fit_boost * 0.09
         + trusted_influencer_boost(video)
-        + topic_boost
+        + topic_affinity
+        + creator_affinity
     )
 
 
 def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Video]:
-    preference = db.scalar(
-        select(models.OnboardingPreference).where(models.OnboardingPreference.user_id == user.id)
-    )
-    preferred_topics = set(preference.topics if preference else [])
+    interest_profile = user_interest_profile(db, user)
 
     hidden_video_ids = select(models.NotInterested.video_id).where(
         models.NotInterested.user_id == user.id
@@ -328,7 +510,7 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
         )
     )
 
-    return sorted(videos, key=lambda video: ranking_score(video, preferred_topics), reverse=True)[
+    return sorted(videos, key=lambda video: ranking_score(video, interest_profile), reverse=True)[
         :limit
     ]
 

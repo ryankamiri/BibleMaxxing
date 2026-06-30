@@ -62,6 +62,56 @@ def register_user(email: str = "ryan@example.com") -> tuple[str, dict]:
     return payload["access_token"], payload["user"]
 
 
+def add_creator(db: Session, creator_id: str, display_name: str) -> models.Creator:
+    creator = models.Creator(
+        id=creator_id,
+        handle=f"@{creator_id}",
+        display_name=display_name,
+        youtube_channel_id=f"channel-{creator_id}",
+    )
+    db.add(creator)
+    return creator
+
+
+def add_video(
+    db: Session,
+    video_id: str,
+    creator: models.Creator,
+    title: str,
+    topics: list[str],
+    spiritual_score: float = 0.7,
+    theology_score: float = 0.75,
+    entertainment_score: float = 0.55,
+    freshness_score: float = 0.5,
+) -> models.Video:
+    video = models.Video(
+        id=video_id,
+        creator_id=creator.id,
+        creator=creator,
+        youtube_video_id=f"yt-{video_id}",
+        title=title,
+        description="A Christian short for recommender testing.",
+        thumbnail_url="https://i.ytimg.com/vi/test/hqdefault.jpg",
+        duration_seconds=59,
+        source_url=f"https://www.youtube.com/shorts/yt-{video_id}",
+        embed_url=f"https://www.youtube.com/embed/yt-{video_id}",
+        tags=topics,
+        topics=topics,
+        spiritual_score=spiritual_score,
+        theology_score=theology_score,
+        entertainment_score=entertainment_score,
+        freshness_score=freshness_score,
+    )
+    db.add(video)
+    return video
+
+
+def feed_video_ids(token: str) -> list[str]:
+    response = client.get("/biblemaxxing/api/v1/feed?limit=20", headers=auth_headers(token))
+    assert response.status_code == 200, response.text
+    return [item["video"]["id"] for item in response.json()["items"] if item["type"] == "video"]
+
+
 def test_health() -> None:
     response = client.get("/biblemaxxing/health")
     assert response.status_code == 200
@@ -171,6 +221,302 @@ def test_trusted_influencer_content_gets_bounded_ranking_boost() -> None:
 
     assert ranking_score(trusted) > ranking_score(ordinary)
     assert ranking_score(trusted) - ranking_score(ordinary) < 0.3
+
+
+def test_feed_learns_different_user_interests_from_feedback() -> None:
+    prayer_token, _ = register_user("prayer@example.com")
+    apologetics_token, _ = register_user("apologetics@example.com")
+
+    with TestingSessionLocal() as db:
+        prayer_creator = add_creator(db, "prayer-creator", "Prayer Pastor")
+        apologetics_creator = add_creator(db, "apologetics-creator", "Apologetics Teacher")
+        add_video(db, "prayer-seed", prayer_creator, "How to pray at work", ["prayer"])
+        add_video(
+            db,
+            "apologetics-seed",
+            apologetics_creator,
+            "Defending the resurrection",
+            ["apologetics"],
+        )
+        add_video(db, "prayer-next", prayer_creator, "Pray before your next task", ["prayer"])
+        add_video(
+            db,
+            "apologetics-next",
+            apologetics_creator,
+            "Why the resurrection matters",
+            ["apologetics"],
+        )
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/onboarding",
+            headers=auth_headers(prayer_token),
+            json={"topicSlugs": ["Prayer"], "intensity": "balanced"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/onboarding",
+            headers=auth_headers(apologetics_token),
+            json={"topicSlugs": ["Apologetics"], "intensity": "balanced"},
+        ).status_code
+        == 200
+    )
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/topics/prayer/follow", headers=auth_headers(prayer_token)
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/creators/prayer-creator/follow",
+            headers=auth_headers(prayer_token),
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/topics/apologetics/follow",
+            headers=auth_headers(apologetics_token),
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/creators/apologetics-creator/follow",
+            headers=auth_headers(apologetics_token),
+        ).status_code
+        == 200
+    )
+
+    for token, video_id in (
+        (prayer_token, "prayer-seed"),
+        (apologetics_token, "apologetics-seed"),
+    ):
+        assert (
+            client.post(
+                f"/biblemaxxing/api/v1/videos/{video_id}/like", headers=auth_headers(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/biblemaxxing/api/v1/videos/{video_id}/save", headers=auth_headers(token)
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                f"/biblemaxxing/api/v1/videos/{video_id}/watch",
+                headers=auth_headers(token),
+                json={"secondsWatched": 80, "percentComplete": 1, "rewatched": True},
+            ).status_code
+            == 200
+        )
+
+    prayer_feed = feed_video_ids(prayer_token)
+    apologetics_feed = feed_video_ids(apologetics_token)
+
+    assert prayer_feed.index("prayer-next") < prayer_feed.index("apologetics-next")
+    assert apologetics_feed.index("apologetics-next") < apologetics_feed.index("prayer-next")
+    assert "prayer-seed" not in prayer_feed
+    assert "apologetics-seed" not in apologetics_feed
+
+
+def test_negative_feedback_downranks_related_videos_without_affecting_other_users() -> None:
+    token, _ = register_user("negative@example.com")
+    other_token, _ = register_user("other-negative@example.com")
+
+    with TestingSessionLocal() as db:
+        worship_creator = add_creator(db, "worship-creator", "Worship Channel")
+        discipline_creator = add_creator(db, "discipline-creator", "Discipline Channel")
+        add_video(db, "worship-rejected", worship_creator, "Worship clip", ["worship"])
+        add_video(db, "worship-next", worship_creator, "Another worship clip", ["worship"])
+        add_video(db, "discipline-next", discipline_creator, "Discipline in Christ", ["discipline"])
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/worship-rejected/not-interested",
+            headers=auth_headers(token),
+            json={"reason": "not my topic"},
+        ).status_code
+        == 200
+    )
+
+    user_feed = feed_video_ids(token)
+    other_feed = feed_video_ids(other_token)
+
+    assert "worship-rejected" not in user_feed
+    assert "worship-rejected" in other_feed
+    assert user_feed.index("discipline-next") < user_feed.index("worship-next")
+
+
+def test_seen_history_exclusions_are_per_signal_and_per_user() -> None:
+    token, _ = register_user("seen@example.com")
+    other_token, _ = register_user("seen-other@example.com")
+
+    with TestingSessionLocal() as db:
+        creator = add_creator(db, "seen-creator", "Seen History Channel")
+        for video_id in (
+            "impression-seen",
+            "watch-seen",
+            "like-seen",
+            "save-seen",
+            "not-interested-seen",
+            "still-new",
+        ):
+            add_video(db, video_id, creator, f"{video_id} title", ["discipleship"])
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/feed/impressions",
+            headers=auth_headers(token),
+            json={"videoID": "impression-seen", "position": 0},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/watch-seen/watch",
+            headers=auth_headers(token),
+            json={"secondsWatched": 15, "percentComplete": 0.5},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/like-seen/like", headers=auth_headers(token)
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/save-seen/save", headers=auth_headers(token)
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/not-interested-seen/not-interested",
+            headers=auth_headers(token),
+            json={"reason": "not interested"},
+        ).status_code
+        == 200
+    )
+
+    user_feed = set(feed_video_ids(token))
+    other_feed = set(feed_video_ids(other_token))
+    excluded_ids = {
+        "impression-seen",
+        "watch-seen",
+        "like-seen",
+        "save-seen",
+        "not-interested-seen",
+    }
+
+    assert excluded_ids.isdisjoint(user_feed)
+    assert excluded_ids.issubset(other_feed)
+    assert "still-new" in user_feed
+
+
+def test_watch_time_feedback_is_bounded_by_spiritual_and_theological_quality() -> None:
+    token, _ = register_user("bounded-watch@example.com")
+
+    with TestingSessionLocal() as db:
+        viral_creator = add_creator(db, "viral-creator", "Viral Clips")
+        safe_creator = add_creator(db, "safe-creator", "Faithful Bible Teaching")
+        add_video(
+            db,
+            "viral-signal",
+            viral_creator,
+            "A flashy Christian clip",
+            ["viral"],
+            spiritual_score=0.35,
+            theology_score=0.4,
+            entertainment_score=0.9,
+            freshness_score=0.9,
+        )
+        add_video(
+            db,
+            "viral-next",
+            viral_creator,
+            "Another flashy Christian clip",
+            ["viral"],
+            spiritual_score=0.35,
+            theology_score=0.4,
+            entertainment_score=0.9,
+            freshness_score=0.9,
+        )
+        add_video(
+            db,
+            "safe-next",
+            safe_creator,
+            "Faithful Scripture for work",
+            ["discipleship"],
+            spiritual_score=0.9,
+            theology_score=0.9,
+            entertainment_score=0.45,
+            freshness_score=0.5,
+        )
+        db.commit()
+
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/viral-signal/watch",
+            headers=auth_headers(token),
+            json={"secondsWatched": 9999, "percentComplete": 1, "rewatched": True},
+        ).status_code
+        == 200
+    )
+
+    video_ids = feed_video_ids(token)
+
+    assert "viral-signal" not in video_ids
+    assert video_ids.index("safe-next") < video_ids.index("viral-next")
+
+
+def test_feedback_endpoints_reject_unknown_videos() -> None:
+    token, _ = register_user("invalid-feedback@example.com")
+    headers = auth_headers(token)
+
+    assert (
+        client.post("/biblemaxxing/api/v1/videos/missing/like", headers=headers).status_code
+        == 404
+    )
+    assert (
+        client.post("/biblemaxxing/api/v1/videos/missing/save", headers=headers).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/missing/not-interested",
+            headers=headers,
+            json={"reason": "missing"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/videos/missing/watch",
+            headers=headers,
+            json={"secondsWatched": 1, "percentComplete": 0.1},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/biblemaxxing/api/v1/feed/impressions",
+            headers=headers,
+            json={"videoID": "missing", "position": 0},
+        ).status_code
+        == 404
+    )
 
 
 def test_worker_rotates_pastor_queries_without_overriding_manual_queries() -> None:

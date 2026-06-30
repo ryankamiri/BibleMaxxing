@@ -516,6 +516,7 @@ def record_impression(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    require_video(db, payload.video_id)
     db.add(
         models.FeedImpression(user_id=user.id, video_id=payload.video_id, position=payload.position)
     )
@@ -530,8 +531,7 @@ def record_watch(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    if db.get(models.Video, video_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    require_video(db, video_id)
     db.add(
         models.WatchEvent(
             user_id=user.id,
@@ -585,10 +585,18 @@ def upsert_unique(db: Session, model: type, **values) -> dict:
     return {"ok": True}
 
 
+def require_video(db: Session, video_id: str) -> models.Video:
+    video = db.get(models.Video, video_id)
+    if video is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return video
+
+
 @app.post(f"{API_PREFIX}/videos/{{video_id}}/like")
 def like_video(
     video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
+    require_video(db, video_id)
     return upsert_unique(db, models.Like, user_id=user.id, video_id=video_id)
 
 
@@ -605,6 +613,7 @@ def unlike_video(
 def save_video(
     video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
+    require_video(db, video_id)
     return upsert_unique(db, models.Save, user_id=user.id, video_id=video_id)
 
 
@@ -624,6 +633,7 @@ def not_interested(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    require_video(db, video_id)
     return upsert_unique(
         db, models.NotInterested, user_id=user.id, video_id=video_id, reason=payload.reason
     )

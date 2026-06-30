@@ -21,6 +21,12 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - `services.ranking_score` should keep the trusted influencer boost bounded:
   trusted pastor/creator clips should rank prominently, but not bypass
   moderation, not-interested, blocks, or seen-history exclusions.
+- `services.user_interest_profile` is the per-user recommendation feedback
+  loop. It should use explicit signals first, keep watch-time capped, and never
+  allow engagement to override theological safety or spiritual usefulness.
+- Positive feedback endpoints should validate that the target video exists
+  before returning success, so the app never believes it trained the recommender
+  on a missing video.
 - `/biblemaxxing/player/{youtube_video_id}` serves a first-party HTML shell for
   the official YouTube iframe player so iOS gets a stable HTTPS origin/referrer.
   It must never proxy, download, cache, or rehost YouTube audiovisual content.
