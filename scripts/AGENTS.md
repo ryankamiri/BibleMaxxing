@@ -24,4 +24,6 @@ Read the root `AGENTS.md` before changing anything here.
 
 - `fetch_youtube_candidates.py` fetches YouTube Data API metadata candidates only.
 - `smoke_api.sh` walks the deployed or local API with throwaway test accounts.
+- `dev_backend.sh` sets up/runs a local SQLite FastAPI dev backend.
+- `build_ios_simulator.sh` builds the SwiftUI app for the iPhone 17 simulator.
 - Long-running production ingestion lives in `backend/app/youtube_worker.py`.

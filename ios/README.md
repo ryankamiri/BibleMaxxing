@@ -6,16 +6,26 @@ Native SwiftUI scaffold for the BibleMaxxing personal prototype.
 
 - Open `ios/BibleMaxxing.xcodeproj` in Xcode 26.4 or newer.
 - Select the `BibleMaxxing` target and an iPhone simulator.
+- The checked-in bundle ID is `com.ryanamiri.biblemaxxing`.
+- The target is iPhone-only for Ryan's personal device testing.
 - CLI simulator build:
 
 ```bash
-xcodebuild \
-  -project ios/BibleMaxxing.xcodeproj \
-  -target BibleMaxxing \
-  -destination 'generic/platform=iOS Simulator' \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+./scripts/build_ios_simulator.sh
 ```
+
+## Run On Ryan's iPhone Without App Store Distribution
+
+1. Plug in the iPhone and trust the Mac on the device.
+2. In Xcode, open `ios/BibleMaxxing.xcodeproj`.
+3. Go to Xcode Settings > Accounts and sign in with Ryan's Apple Account.
+4. Select the `BibleMaxxing` target, then Signing & Capabilities.
+5. Enable automatic signing and choose Ryan's Personal Team.
+6. Select Ryan's iPhone as the run destination.
+7. Press Run.
+
+If iOS prompts for Developer Mode or trusting the developer profile, follow the
+device prompts, then run from Xcode again.
 
 ## Backend Contract
 
