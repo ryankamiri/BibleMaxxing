@@ -1,0 +1,726 @@
+from datetime import UTC, datetime
+
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
+
+from app import models, schemas, services
+from app.config import get_settings
+from app.database import Base, engine, get_db
+from app.security import create_access_token, decode_access_token, hash_password, verify_password
+
+settings = get_settings()
+
+app = FastAPI(
+    title="BibleMaxxing API",
+    version="0.1.0",
+    docs_url="/biblemaxxing/docs",
+    openapi_url="/biblemaxxing/openapi.json",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+bearer = HTTPBearer(auto_error=False)
+API_PREFIX = "/biblemaxxing/api/v1"
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    if settings.auto_create_tables:
+        Base.metadata.create_all(bind=engine)
+
+
+def issue_auth_response(db: Session, user: models.User) -> schemas.AuthResponse:
+    access_token, token_id, expires_at = create_access_token(user.id)
+    db.add(models.UserSession(user_id=user.id, token_id=token_id, expires_at=expires_at))
+    db.commit()
+    db.refresh(user)
+    return schemas.AuthResponse(access_token=access_token, user=user)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> models.User:
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    payload = decode_access_token(credentials.credentials)
+    if not payload or not payload.get("sub") or not payload.get("jti"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    session = db.scalar(
+        select(models.UserSession).where(models.UserSession.token_id == payload["jti"])
+    )
+    if session is None or session.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked")
+    user = db.get(models.User, payload["sub"])
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User unavailable")
+    if user.suspended_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User suspended")
+    return user
+
+
+def get_current_session(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> models.UserSession:
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    payload = decode_access_token(credentials.credentials)
+    if not payload or not payload.get("jti"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    session = db.scalar(
+        select(models.UserSession).where(models.UserSession.token_id == payload["jti"])
+    )
+    if session is None or session.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked")
+    return session
+
+
+def require_admin(user: models.User = Depends(get_current_user)) -> models.User:
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+    return user
+
+
+@app.get("/biblemaxxing/health")
+def health() -> dict:
+    return {"ok": True, "service": "biblemaxxing", "env": settings.env}
+
+
+@app.post(f"{API_PREFIX}/auth/register", response_model=schemas.AuthResponse)
+def register(
+    payload: schemas.RegisterRequest, db: Session = Depends(get_db)
+) -> schemas.AuthResponse:
+    existing = db.scalar(
+        select(models.User).where(
+            (models.User.email == payload.email.lower())
+            | (models.User.username == payload.username)
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+
+    active_user_count = (
+        db.scalar(select(func.count(models.User.id)).where(models.User.deleted_at.is_(None))) or 0
+    )
+    user = models.User(
+        username=payload.username,
+        email=payload.email.lower(),
+        password_hash=hash_password(payload.password),
+        birthday=payload.birthday,
+        is_admin=active_user_count == 0,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="User already exists"
+        ) from None
+    db.refresh(user)
+    return issue_auth_response(db, user)
+
+
+@app.post(f"{API_PREFIX}/auth/login", response_model=schemas.AuthResponse)
+def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)) -> schemas.AuthResponse:
+    user = db.scalar(select(models.User).where(models.User.email == payload.email.lower()))
+    if (
+        user is None
+        or user.deleted_at is not None
+        or not verify_password(payload.password, user.password_hash)
+    ):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    return issue_auth_response(db, user)
+
+
+@app.post(f"{API_PREFIX}/auth/apple")
+def apple_auth_placeholder() -> dict:
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Sign in with Apple awaits Apple Developer configuration",
+    )
+
+
+@app.post(f"{API_PREFIX}/auth/logout")
+def logout(
+    session: models.UserSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
+) -> dict:
+    session.revoked_at = datetime.now(UTC)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get(f"{API_PREFIX}/me", response_model=schemas.UserPublic)
+def me(user: models.User = Depends(get_current_user)) -> models.User:
+    return user
+
+
+@app.delete(f"{API_PREFIX}/me")
+def delete_account(
+    user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    user.deleted_at = datetime.now(UTC)
+    db.query(models.UserSession).filter(models.UserSession.user_id == user.id).update(
+        {"revoked_at": datetime.now(UTC)}
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete(f"{API_PREFIX}/account")
+def delete_account_alias(
+    user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return delete_account(user=user, db=db)
+
+
+@app.post(f"{API_PREFIX}/onboarding", response_model=schemas.UserPublic)
+def save_onboarding(
+    payload: schemas.OnboardingRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.User:
+    preference = db.scalar(
+        select(models.OnboardingPreference).where(models.OnboardingPreference.user_id == user.id)
+    )
+    if preference is None:
+        preference = models.OnboardingPreference(user_id=user.id)
+        db.add(preference)
+    preference.topics = sorted(set(payload.topics))
+    preference.intensity = payload.intensity
+    user.onboarding_completed = True
+    for topic in preference.topics:
+        slug = services.slugify(topic)
+        if slug and db.scalar(select(models.Topic).where(models.Topic.slug == slug)) is None:
+            db.add(models.Topic(slug=slug, name=topic))
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.get(f"{API_PREFIX}/feed", response_model=schemas.FeedResponse)
+def feed(
+    limit: int = Query(default=12, ge=1, le=50),
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> schemas.FeedResponse:
+    videos = services.feed_for_user(db, user, limit)
+    items: list[schemas.FeedItem] = []
+    if services.should_insert_reflection(db, user):
+        items.append(
+            schemas.FeedItem(
+                type="reflection",
+                reflection=services.create_reflection_card(db, user, "ten_minute_or_binge_check"),
+                rank_reason="A short pause after sustained scrolling.",
+            )
+        )
+    for video in videos:
+        items.append(
+            schemas.FeedItem(
+                type="video",
+                video=schemas.VideoPublic.model_validate(video),
+                rank_reason="Christ-centered score, theology safety, freshness, and your topics.",
+            )
+        )
+    return schemas.FeedResponse(items=items)
+
+
+@app.post(f"{API_PREFIX}/feed/impressions")
+def record_impression(
+    payload: schemas.ImpressionRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    db.add(
+        models.FeedImpression(user_id=user.id, video_id=payload.video_id, position=payload.position)
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/watch")
+def record_watch(
+    video_id: str,
+    payload: schemas.WatchEventRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if db.get(models.Video, video_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    db.add(
+        models.WatchEvent(
+            user_id=user.id,
+            video_id=video_id,
+            seconds_watched=int(payload.seconds_watched),
+            percent_complete=payload.percent_complete,
+            rewatched=payload.rewatched,
+            event_type=payload.event_type,
+        )
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/watch-events")
+def record_watch_event_alias(
+    payload: dict,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    video_id = payload.get("video_id") or payload.get("videoID")
+    if not video_id:
+        return {"ok": True, "recorded": False}
+
+    seconds = int(payload.get("seconds_watched") or payload.get("positionSeconds") or 0)
+    duration = float(payload.get("durationSeconds") or 0)
+    percent_complete = float(payload.get("percent_complete") or 0)
+    if not percent_complete and duration > 0:
+        percent_complete = max(0, min(1, seconds / duration))
+
+    db.add(
+        models.WatchEvent(
+            user_id=user.id,
+            video_id=video_id,
+            seconds_watched=seconds,
+            percent_complete=percent_complete,
+            rewatched=bool(payload.get("rewatched", False)),
+            event_type=payload.get("event_type") or payload.get("eventType") or "progress",
+        )
+    )
+    db.commit()
+    return {"ok": True, "recorded": True}
+
+
+def upsert_unique(db: Session, model: type, **values) -> dict:
+    db.add(model(**values))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/like")
+def like_video(
+    video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return upsert_unique(db, models.Like, user_id=user.id, video_id=video_id)
+
+
+@app.delete(f"{API_PREFIX}/videos/{{video_id}}/like")
+def unlike_video(
+    video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Like).filter_by(user_id=user.id, video_id=video_id).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/save")
+def save_video(
+    video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return upsert_unique(db, models.Save, user_id=user.id, video_id=video_id)
+
+
+@app.delete(f"{API_PREFIX}/videos/{{video_id}}/save")
+def unsave_video(
+    video_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Save).filter_by(user_id=user.id, video_id=video_id).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/not-interested")
+def not_interested(
+    video_id: str,
+    payload: schemas.NotInterestedRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return upsert_unique(
+        db, models.NotInterested, user_id=user.id, video_id=video_id, reason=payload.reason
+    )
+
+
+@app.get(f"{API_PREFIX}/videos/{{video_id}}/comments", response_model=list[schemas.CommentPublic])
+def comments(
+    video_id: str,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[models.Comment]:
+    blocked_user_ids = select(models.Block.target_id).where(
+        (models.Block.user_id == user.id) & (models.Block.target_type == "user")
+    )
+    return list(
+        db.scalars(
+            select(models.Comment)
+            .where(
+                models.Comment.video_id == video_id,
+                models.Comment.moderation_status == "visible",
+                models.Comment.user_id.not_in(blocked_user_ids),
+            )
+            .order_by(models.Comment.created_at.desc())
+            .limit(100)
+        )
+    )
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/comments", response_model=schemas.CommentPublic)
+def create_comment(
+    video_id: str,
+    payload: schemas.CommentCreateRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.Comment:
+    comment = models.Comment(user_id=user.id, video_id=video_id, body=payload.body)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
+@app.post(f"{API_PREFIX}/videos/{{video_id}}/report", response_model=schemas.ReportPublic)
+def report_video(
+    video_id: str,
+    payload: schemas.ReportRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.ModerationReport:
+    return services.report_target(db, user.id, "video", video_id, payload.reason, payload.details)
+
+
+@app.post(f"{API_PREFIX}/comments/{{comment_id}}/report", response_model=schemas.ReportPublic)
+def report_comment(
+    comment_id: str,
+    payload: schemas.ReportRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.ModerationReport:
+    return services.report_target(
+        db, user.id, "comment", comment_id, payload.reason, payload.details
+    )
+
+
+@app.post(f"{API_PREFIX}/creators/{{creator_id}}/follow")
+def follow_creator(
+    creator_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return upsert_unique(
+        db, models.Follow, user_id=user.id, target_type="creator", target_id=creator_id
+    )
+
+
+@app.delete(f"{API_PREFIX}/creators/{{creator_id}}/follow")
+def unfollow_creator(
+    creator_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Follow).filter_by(
+        user_id=user.id, target_type="creator", target_id=creator_id
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/topics/{{topic_slug}}/follow")
+def follow_topic(
+    topic_slug: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return upsert_unique(
+        db, models.Follow, user_id=user.id, target_type="topic", target_id=topic_slug
+    )
+
+
+@app.delete(f"{API_PREFIX}/topics/{{topic_slug}}/follow")
+def unfollow_topic(
+    topic_slug: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Follow).filter_by(
+        user_id=user.id, target_type="topic", target_id=topic_slug
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/creators/{{creator_id}}/block")
+def block_creator(
+    creator_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    return upsert_unique(
+        db, models.Block, user_id=user.id, target_type="creator", target_id=creator_id
+    )
+
+
+@app.delete(f"{API_PREFIX}/creators/{{creator_id}}/block")
+def unblock_creator(
+    creator_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Block).filter_by(
+        user_id=user.id, target_type="creator", target_id=creator_id
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{API_PREFIX}/users/{{user_id}}/block")
+def block_user(
+    user_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    if user_id == user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot block yourself")
+    if db.get(models.User, user_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return upsert_unique(db, models.Block, user_id=user.id, target_type="user", target_id=user_id)
+
+
+@app.delete(f"{API_PREFIX}/users/{{user_id}}/block")
+def unblock_user(
+    user_id: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict:
+    db.query(models.Block).filter_by(
+        user_id=user.id, target_type="user", target_id=user_id
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.get(f"{API_PREFIX}/creators", response_model=list[schemas.CreatorPublic])
+def creators(
+    query: str | None = None,
+    _: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[models.Creator]:
+    stmt = select(models.Creator).order_by(models.Creator.display_name)
+    if query:
+        like_query = f"%{query}%"
+        stmt = stmt.where(
+            (models.Creator.display_name.ilike(like_query))
+            | (models.Creator.handle.ilike(like_query))
+        )
+    return list(db.scalars(stmt.limit(50)))
+
+
+@app.get(f"{API_PREFIX}/creators/{{creator_id}}", response_model=schemas.CreatorPublic)
+def creator(
+    creator_id: str,
+    _: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> models.Creator:
+    creator_row = db.get(models.Creator, creator_id)
+    if creator_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator not found")
+    return creator_row
+
+
+@app.get(f"{API_PREFIX}/search", response_model=schemas.SearchResponse)
+def search(q: str = Query(min_length=1), db: Session = Depends(get_db)) -> schemas.SearchResponse:
+    creators, videos, topics = services.search(db, q)
+    return schemas.SearchResponse(creators=creators, videos=videos, topics=topics)
+
+
+@app.get(f"{API_PREFIX}/reflection/next", response_model=schemas.ReflectionCard)
+def reflection(
+    user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> schemas.ReflectionCard:
+    return services.create_reflection_card(db, user, "manual_request")
+
+
+@app.post(f"{API_PREFIX}/admin/ingest/candidates", response_model=schemas.IngestResponse)
+def ingest_candidates(
+    payload: schemas.IngestRequest,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> schemas.IngestResponse:
+    created, skipped = services.upsert_youtube_candidates(
+        db, payload.candidates, default_approve=payload.default_approve
+    )
+    return schemas.IngestResponse(created=created, skipped=skipped)
+
+
+@app.post(f"{API_PREFIX}/admin/ingest/sample", response_model=schemas.IngestResponse)
+def ingest_sample(
+    _: models.User = Depends(require_admin), db: Session = Depends(get_db)
+) -> schemas.IngestResponse:
+    created, skipped = services.seed_sample_inventory(db)
+    return schemas.IngestResponse(created=created, skipped=skipped)
+
+
+@app.get(f"{API_PREFIX}/admin/reports", response_model=list[schemas.ReportPublic])
+def admin_reports(
+    status_filter: str | None = Query(default=None, alias="status"),
+    target_type: str | None = Query(default=None, alias="type"),
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.ModerationReport]:
+    stmt = select(models.ModerationReport).order_by(models.ModerationReport.created_at.desc())
+    if status_filter:
+        stmt = stmt.where(models.ModerationReport.status == status_filter)
+    if target_type:
+        stmt = stmt.where(models.ModerationReport.target_type == target_type)
+    return list(db.scalars(stmt.limit(200)))
+
+
+@app.post(f"{API_PREFIX}/admin/reports/{{report_id}}/resolve")
+def admin_resolve_report(
+    report_id: str,
+    payload: schemas.ReportResolveRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    services.apply_moderation(db, admin, "report", report_id, payload.status, payload.notes)
+    return {"ok": True}
+
+
+@app.get(f"{API_PREFIX}/admin/videos", response_model=list[schemas.VideoPublic])
+def admin_videos(
+    moderation_status: str | None = None,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.Video]:
+    stmt = select(models.Video).options(joinedload(models.Video.creator))
+    if moderation_status:
+        stmt = stmt.where(models.Video.moderation_status == moderation_status)
+    return list(db.scalars(stmt.limit(200)))
+
+
+@app.get(f"{API_PREFIX}/admin/comments", response_model=list[schemas.CommentPublic])
+def admin_comments(
+    moderation_status: str | None = None,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.Comment]:
+    stmt = select(models.Comment).order_by(models.Comment.created_at.desc())
+    if moderation_status:
+        stmt = stmt.where(models.Comment.moderation_status == moderation_status)
+    return list(db.scalars(stmt.limit(200)))
+
+
+@app.get(f"{API_PREFIX}/admin/users", response_model=list[schemas.UserPublic])
+def admin_users(
+    query: str | None = None,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.User]:
+    stmt = select(models.User).order_by(models.User.created_at.desc())
+    if query:
+        like_query = f"%{query}%"
+        stmt = stmt.where(
+            (models.User.username.ilike(like_query)) | (models.User.email.ilike(like_query))
+        )
+    return list(db.scalars(stmt.limit(100)))
+
+
+@app.get(f"{API_PREFIX}/admin/creators", response_model=list[schemas.CreatorPublic])
+def admin_creators(
+    query: str | None = None,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[models.Creator]:
+    stmt = select(models.Creator).order_by(models.Creator.display_name)
+    if query:
+        like_query = f"%{query}%"
+        stmt = stmt.where(
+            (models.Creator.display_name.ilike(like_query))
+            | (models.Creator.handle.ilike(like_query))
+        )
+    return list(db.scalars(stmt.limit(100)))
+
+
+@app.get(f"{API_PREFIX}/admin/blocks", response_model=list[schemas.BlockPublic])
+def admin_blocks(
+    _: models.User = Depends(require_admin), db: Session = Depends(get_db)
+) -> list[models.Block]:
+    return list(
+        db.scalars(select(models.Block).order_by(models.Block.created_at.desc()).limit(200))
+    )
+
+
+@app.get(f"{API_PREFIX}/admin/audit-log", response_model=list[schemas.AdminAuditPublic])
+def admin_audit_log(
+    _: models.User = Depends(require_admin), db: Session = Depends(get_db)
+) -> list[models.AdminAudit]:
+    return list(
+        db.scalars(
+            select(models.AdminAudit).order_by(models.AdminAudit.created_at.desc()).limit(200)
+        )
+    )
+
+
+@app.patch(f"{API_PREFIX}/admin/{{target_type}}/{{target_id}}")
+def admin_moderate(
+    target_type: str,
+    target_id: str,
+    payload: schemas.ModerationUpdateRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    target_type = {
+        "videos": "video",
+        "comments": "comment",
+        "reports": "report",
+        "creators": "creator",
+        "users": "user",
+    }.get(target_type, target_type)
+    if target_type not in {"video", "comment", "report", "creator", "user"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported target type"
+        )
+    services.apply_moderation(db, admin, target_type, target_id, payload.status, payload.notes)
+    return {"ok": True}
+
+
+@app.patch(f"{API_PREFIX}/admin/videos/{{video_id}}/moderation")
+def admin_video_moderation_alias(
+    video_id: str,
+    payload: schemas.ModerationUpdateRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    services.apply_moderation(db, admin, "video", video_id, payload.status, payload.notes)
+    return {"ok": True}
+
+
+@app.patch(f"{API_PREFIX}/admin/comments/{{comment_id}}/moderation")
+def admin_comment_moderation_alias(
+    comment_id: str,
+    payload: schemas.ModerationUpdateRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    services.apply_moderation(db, admin, "comment", comment_id, payload.status, payload.notes)
+    return {"ok": True}
+
+
+@app.patch(f"{API_PREFIX}/admin/users/{{user_id}}")
+def admin_user_moderation_alias(
+    user_id: str,
+    payload: schemas.ModerationUpdateRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    services.apply_moderation(db, admin, "user", user_id, payload.status, payload.notes)
+    return {"ok": True}
+
+
+@app.patch(f"{API_PREFIX}/admin/creators/{{creator_id}}")
+def admin_creator_moderation_alias(
+    creator_id: str,
+    payload: schemas.ModerationUpdateRequest,
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    services.apply_moderation(db, admin, "creator", creator_id, payload.status, payload.notes)
+    return {"ok": True}

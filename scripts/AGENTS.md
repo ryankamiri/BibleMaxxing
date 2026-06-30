@@ -20,3 +20,7 @@ Read the root `AGENTS.md` before changing anything here.
 - For VPS-affecting scripts, default to inspect/report mode.
 - For database scripts, require explicit env/config and avoid hardcoded production credentials.
 
+## Current Scripts
+
+- `fetch_youtube_candidates.py` fetches YouTube Data API metadata candidates only.
+- `smoke_api.sh` walks the deployed or local API with throwaway test accounts.

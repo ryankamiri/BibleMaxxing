@@ -46,3 +46,14 @@ Read the root `AGENTS.md` before changing anything here.
 - Icons should use native SF Symbols where appropriate.
 - Avoid hardcoding production secrets or API keys in the app.
 
+## Current Project Layout
+
+- Xcode project: `BibleMaxxing.xcodeproj`.
+- Source root: `BibleMaxxingApp/`.
+- App routing: `BibleMaxxingApp/App/`.
+- API models: `BibleMaxxingApp/Models/APIModels.swift`.
+- Networking/session state: `BibleMaxxingApp/Services/`.
+- Reusable UI and YouTube embed wrapper: `BibleMaxxingApp/Components/`.
+- Feature screens: `BibleMaxxingApp/Features/`.
+
+The app points at `https://api.tailortom.org/biblemaxxing/api/v1` and stores bearer tokens in Keychain. Feed video playback is through the official YouTube iframe player in `WKWebView`; do not add MP4 download, offline playback, or save-to-camera-roll behavior.

@@ -31,4 +31,5 @@ The safest BibleMaxxing deployment path is:
 - Use Docker health checks.
 - Use env files for secrets and never commit real env values.
 - Keep deployment commands repeatable and documented.
-
+- Keep `deployment-plan.md`, `docker-compose.biblemaxxing.example.yml`, `Caddyfile.biblemaxxing.example`, and `biblemaxxing.env.example` in sync with the live deployment shape.
+- Helper scripts must be guarded, explicit, and safe for a shared TailorTom VPS; do not auto-patch live Caddy unless Ryan asks.

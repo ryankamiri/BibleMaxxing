@@ -21,9 +21,18 @@ Maintain docs for:
 - Recommendation algorithm and anti-addiction guardrails.
 - Data model and API surface.
 - Deployment plan for `https://api.tailortom.org/biblemaxxing`.
+- Overnight QA checklist and verification evidence.
+
+## Canonical Files
+
+- `api-surface.md` is the shared backend/iOS/admin API contract.
+- `youtube-embed-policy.md` is the source-of-truth for YouTube allowed and forbidden behavior.
+- `app-store-compliance.md` tracks App Store and TestFlight readiness.
+- `moderation-account-deletion.md` tracks moderation, reports, blocks, and account deletion behavior.
+- `qa-checklist.md` tracks final CTO verification steps.
+- `verification-log.md` records commands and live deployment evidence from completed checkpoints.
 
 ## Privacy
 
 - Do not include secrets, cookies, private keys, raw tokens, or private account data in docs.
 - Draft privacy/terms text should be clearly marked as drafts unless reviewed.
-

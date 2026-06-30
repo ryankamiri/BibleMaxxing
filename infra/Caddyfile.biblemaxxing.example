@@ -1,0 +1,15 @@
+# Insert this block inside the existing api.tailortom.org site block before the
+# catch-all TailorTom reverse_proxy. It keeps TailorTom's default API route
+# intact while carving out /biblemaxxing for the BibleMaxxing backend. The
+# FastAPI app itself owns /biblemaxxing routes, so do not strip the prefix.
+
+@biblemaxxing path /biblemaxxing /biblemaxxing/*
+handle @biblemaxxing {
+	reverse_proxy biblemaxxing-api:8000
+}
+
+# Existing TailorTom fallback should remain after the BibleMaxxing handle:
+#
+# handle {
+# 	reverse_proxy api:8000
+# }
