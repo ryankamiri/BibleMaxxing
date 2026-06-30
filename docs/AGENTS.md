@@ -28,6 +28,10 @@ Maintain docs for:
 - `api-surface.md` is the shared backend/iOS/admin API contract.
 - `youtube-embed-policy.md` is the source-of-truth for YouTube allowed and forbidden behavior.
 - `app-store-compliance.md` tracks App Store and TestFlight readiness.
+- `app-review-submission.md` is the App Store Connect handoff for public URLs,
+  review notes, metadata wording, and demo account instructions.
+- `app-store-friend-publishing.md` is the friend-publisher handoff for signing,
+  App Store Connect ownership, public URL values, and compliance guardrails.
 - `moderation-account-deletion.md` tracks moderation, reports, blocks, and account deletion behavior.
 - `recommendation-ingestion-evals.md` tracks recommender/worker eval scorecards,
   gates, baseline comparison semantics, and run commands.

@@ -27,7 +27,8 @@ TestFlight and App Store review without rewrites:
 - User-generated comments with moderation, reporting, blocking, and admin review.
 - YouTube embedded playback only.
 - Clear source attribution.
-- Privacy policy and terms drafts in `docs/` before TestFlight/App Store use.
+- Public privacy, terms, community guidelines, and support URLs before
+  TestFlight/App Store use.
 
 ## Guideline Risk Areas
 
@@ -90,6 +91,7 @@ Do not collect phone numbers in v1.
 ## Required App Surfaces
 
 - Terms and privacy links during registration.
+- Public links available without an account.
 - Account deletion in settings.
 - Report video/comment/user/creator.
 - Block user/creator.
@@ -100,22 +102,22 @@ Do not collect phone numbers in v1.
 
 ## App Review Notes Draft
 
-Use this as a starting point when submitting later:
+Use this as a starting point when submitting later. The fuller handoff lives in
+`docs/app-review-submission.md`.
 
 ```text
-BibleMaxxing is a Christian short-form video feed that uses official YouTube
-embedded playback and YouTube Data API metadata. The app does not download,
-cache, convert, rehost, or serve YouTube audiovisual content. Users can report
-videos/comments, block users/creators, delete their accounts in app, and contact
-the app owner for moderation or privacy concerns.
+BibleMaxxing is a Christian short-form video feed with reflection breaks and
+Bible-centered curation. Video playback uses official YouTube embedded playback
+and YouTube Data API metadata. The app does not download, cache, convert,
+rehost, or serve YouTube audiovisual content. Users can report videos/comments,
+block users/creators, delete their accounts in app, and contact the app owner
+at ryanamiri05@gmail.com for moderation, privacy, or support concerns.
 ```
 
 ## Open Items Before TestFlight/App Store
 
-- Final privacy policy and terms.
 - Apple Developer team/app identifier.
 - Sign in with Apple service ID/client secret setup.
 - Age rating questionnaire.
-- Support/contact email.
 - Moderation response process and admin login hardening.
 - Review of YouTube API Services compliance after real ingestion is live.

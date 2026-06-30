@@ -24,6 +24,14 @@ struct SettingsView: View {
                     Label("Reports and blocks help keep the feed safe.", systemImage: "shield")
                 }
 
+                Section("Legal and support") {
+                    ForEach(PublicPage.allCases) { page in
+                        Link(destination: session.apiClient.publicPageURL(page)) {
+                            Label(page.title, systemImage: page.systemImage)
+                        }
+                    }
+                }
+
                 if session.currentUser?.isAdmin == true {
                     Section("Admin") {
                         NavigationLink {
@@ -90,5 +98,20 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+private extension PublicPage {
+    var systemImage: String {
+        switch self {
+        case .privacy:
+            return "lock.shield"
+        case .terms:
+            return "doc.text"
+        case .community:
+            return "person.2"
+        case .support:
+            return "envelope"
+        }
     }
 }

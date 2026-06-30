@@ -104,6 +104,19 @@ struct AuthView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("By continuing, you agree to BibleMaxxing's terms and community guidelines.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 14) {
+                            ForEach(PublicPage.allCases) { page in
+                                Link(page.title, destination: session.apiClient.publicPageURL(page))
+                                    .font(.footnote.weight(.semibold))
+                            }
+                        }
+                    }
+
                     if let error = session.errorMessage {
                         Text(error)
                             .font(.footnote.weight(.medium))

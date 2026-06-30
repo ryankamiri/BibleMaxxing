@@ -98,7 +98,10 @@ Minimum behavior:
 
 - New comments from trusted users can be visible immediately if automated checks
   pass.
-- Comments with risky terms or reports should move to `pending` or `hidden`.
+- Comments with profanity, slurs, threats, or direct abuse are rejected before
+  posting.
+- Comments with other risky terms or reports should move to `pending` or
+  `hidden`.
 - Reported comments remain visible or hidden based on severity; high-risk
   reports should hide pending review.
 - Comment deletion should be soft-delete or tombstone-backed so reports and

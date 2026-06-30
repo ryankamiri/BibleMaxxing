@@ -1,5 +1,27 @@
 import Foundation
 
+enum PublicPage: String, CaseIterable, Identifiable {
+    case privacy
+    case terms
+    case community
+    case support
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .privacy:
+            return "Privacy"
+        case .terms:
+            return "Terms"
+        case .community:
+            return "Guidelines"
+        case .support:
+            return "Support"
+        }
+    }
+}
+
 enum APIClientError: LocalizedError {
     case invalidURL
     case invalidResponse
@@ -84,14 +106,7 @@ final class APIClient {
     }
 
     func youtubePlayerPageURL(videoID: String, autoplay: Bool = false) -> URL {
-        var serviceRoot = baseURL
-        if serviceRoot.lastPathComponent == "v1" {
-            serviceRoot.deleteLastPathComponent()
-        }
-        if serviceRoot.lastPathComponent == "api" {
-            serviceRoot.deleteLastPathComponent()
-        }
-
+        let serviceRoot = serviceRootURL()
         let playerURL = serviceRoot
             .appendingPathComponent("player")
             .appendingPathComponent(videoID)
@@ -100,6 +115,21 @@ final class APIClient {
             URLQueryItem(name: "autoplay", value: autoplay ? "1" : "0")
         ]
         return components?.url ?? playerURL
+    }
+
+    func publicPageURL(_ page: PublicPage) -> URL {
+        serviceRootURL().appendingPathComponent(page.rawValue)
+    }
+
+    private func serviceRootURL() -> URL {
+        var serviceRoot = baseURL
+        if serviceRoot.lastPathComponent == "v1" {
+            serviceRoot.deleteLastPathComponent()
+        }
+        if serviceRoot.lastPathComponent == "api" {
+            serviceRoot.deleteLastPathComponent()
+        }
+        return serviceRoot
     }
 
     func recordFeedImpression(videoID: String, position: Int) async throws {

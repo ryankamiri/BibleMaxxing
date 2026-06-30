@@ -48,6 +48,8 @@ Read the root `AGENTS.md` before changing anything here.
 - Report video/comment.
 - Block user/creator.
 - Account deletion flow.
+- Public privacy, terms, community-guidelines, and support links must be
+  reachable before login and inside Settings.
 - Reflection/Scripture cards after about 10 minutes and when binge-like behavior is detected.
 
 ## Engineering Notes

@@ -35,6 +35,7 @@ app.add_middleware(
 bearer = HTTPBearer(auto_error=False)
 API_PREFIX = "/biblemaxxing/api/v1"
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
+CONTACT_EMAIL = "ryanamiri05@gmail.com"
 
 
 @app.on_event("startup")
@@ -99,6 +100,154 @@ def require_admin(user: models.User = Depends(get_current_user)) -> models.User:
 @app.get("/biblemaxxing/health")
 def health() -> dict:
     return {"ok": True, "service": "biblemaxxing", "env": settings.env}
+
+
+def public_page_document(title: str, body: str) -> str:
+    safe_title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{safe_title} | BibleMaxxing</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: #050505;
+      color: #f8f8f8;
+    }}
+    body {{
+      margin: 0 auto;
+      max-width: 760px;
+      padding: 44px 20px 64px;
+      line-height: 1.55;
+    }}
+    h1 {{ font-size: clamp(34px, 7vw, 54px); line-height: 0.95; margin: 0 0 12px; }}
+    h2 {{ margin-top: 32px; }}
+    p, li {{ color: rgba(248, 248, 248, 0.78); }}
+    a {{ color: #ffe45e; }}
+    .updated {{ color: rgba(248, 248, 248, 0.55); font-size: 14px; margin-bottom: 30px; }}
+  </style>
+</head>
+<body>
+  <h1>{safe_title}</h1>
+  <p class="updated">Last updated June 30, 2026</p>
+  {body}
+</body>
+</html>"""
+
+
+@app.get("/biblemaxxing/privacy", response_class=HTMLResponse)
+def privacy_page() -> HTMLResponse:
+    return HTMLResponse(
+        public_page_document(
+            "Privacy Policy",
+            f"""
+  <p>BibleMaxxing is a Christian short-form video app with Bible-centered curation,
+  reflection breaks, comments, reports, blocks, and account safety tools.</p>
+  <h2>Information We Collect</h2>
+  <ul>
+    <li>Account details: username, email address, password hash, birthday or age
+    posture, and Apple sign-in identifiers when used.</li>
+    <li>App activity: onboarding topics, follows, likes, saves, not-interested
+    actions, watch events, comments, reports, blocks, and moderation/admin
+    actions.</li>
+    <li>Content metadata: YouTube video IDs, titles, descriptions, thumbnails,
+    creator/channel metadata, topics, and moderation status.</li>
+  </ul>
+  <h2>How We Use Information</h2>
+  <p>We use this information to operate the feed, personalize recommendations,
+  secure accounts, moderate comments/content, respond to reports, support account
+  deletion, and keep the app spiritually useful and safe.</p>
+  <h2>Third-Party Content</h2>
+  <p>Videos play through official YouTube embedded playback. BibleMaxxing does not
+  download, cache, convert, rehost, or serve YouTube audiovisual content.</p>
+  <h2>Your Choices</h2>
+  <p>You can delete your account in Settings. You can also report videos/comments
+  and block users/creators in the app.</p>
+  <h2>Contact</h2>
+  <p>For privacy or moderation questions, email
+  <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>
+""",
+        )
+    )
+
+
+@app.get("/biblemaxxing/terms", response_class=HTMLResponse)
+def terms_page() -> HTMLResponse:
+    return HTMLResponse(
+        public_page_document(
+            "Terms of Service",
+            f"""
+  <p>By using BibleMaxxing, you agree to use the app lawfully and respectfully.
+  BibleMaxxing curates Christian short-form video metadata and plays videos
+  through official embedded YouTube playback.</p>
+  <h2>Accounts</h2>
+  <p>You are responsible for your account activity. Users must be at least 13 years old.</p>
+  <h2>Content And Conduct</h2>
+  <p>Do not post abusive, profane, hateful, harassing, sexual, violent, spammy,
+  deceptive, illegal, or otherwise unsafe comments. We may reject, hide, remove,
+  or moderate content that violates these terms or the community guidelines.</p>
+  <h2>Third-Party Video</h2>
+  <p>YouTube videos remain hosted and controlled by YouTube and their respective
+  creators. BibleMaxxing does not claim ownership of third-party videos and does
+  not provide offline playback or camera-roll saving for YouTube-sourced videos.</p>
+  <h2>Reports, Blocks, And Account Deletion</h2>
+  <p>You can report videos/comments, block users/creators, and delete your account
+  in the app. Contact <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a> for support.</p>
+""",
+        )
+    )
+
+
+@app.get("/biblemaxxing/community", response_class=HTMLResponse)
+def community_page() -> HTMLResponse:
+    return HTMLResponse(
+        public_page_document(
+            "Community Guidelines",
+            f"""
+  <p>BibleMaxxing exists to encourage Christ-centered attention, Scripture-shaped
+  reflection, and thoughtful conversation.</p>
+  <h2>Allowed</h2>
+  <ul>
+    <li>Thoughtful comments about faith, Scripture, repentance, prayer, work, and discipleship.</li>
+    <li>Respectful disagreement and questions asked in good faith.</li>
+    <li>Reports when content seems unsafe, abusive, non-Christian, or unavailable.</li>
+  </ul>
+  <h2>Not Allowed</h2>
+  <ul>
+    <li>Abuse, harassment, slurs, threats, profanity aimed at people, or cruelty.</li>
+    <li>Sexual content, graphic violence, spam, scams, impersonation, or illegal activity.</li>
+    <li>False teaching, anti-Christian spirituality, or content that fights the
+    app's Christian purpose.</li>
+  </ul>
+  <h2>Moderation</h2>
+  <p>Automated checks may reject comments before posting. Users can report content,
+  block users/creators, and admins can hide or remove unsafe content.</p>
+  <p>Contact: <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>
+""",
+        )
+    )
+
+
+@app.get("/biblemaxxing/support", response_class=HTMLResponse)
+def support_page() -> HTMLResponse:
+    return HTMLResponse(
+        public_page_document(
+            "Support",
+            f"""
+  <p>Need help with BibleMaxxing, account deletion, privacy, reports, moderation,
+  or a YouTube source issue?</p>
+  <h2>Contact</h2>
+  <p>Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>
+  <h2>Helpful Details</h2>
+  <p>When reporting a bug or moderation concern, include your account email, the
+  video/comment involved, what happened, and screenshots if useful. Do not send
+  passwords or private tokens.</p>
+""",
+        )
+    )
 
 
 @app.get("/biblemaxxing/player/{youtube_video_id}", response_class=HTMLResponse)
@@ -669,7 +818,15 @@ def create_comment(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> models.Comment:
-    comment = models.Comment(user_id=user.id, video_id=video_id, body=payload.body)
+    require_video(db, video_id)
+    body = payload.body.strip()
+    violation = services.comment_policy_violation(body)
+    if violation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Comment violates BibleMaxxing community guidelines.",
+        )
+    comment = models.Comment(user_id=user.id, video_id=video_id, body=body)
     db.add(comment)
     db.commit()
     db.refresh(comment)
@@ -683,6 +840,7 @@ def report_video(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> models.ModerationReport:
+    require_video(db, video_id)
     return services.report_target(db, user.id, "video", video_id, payload.reason, payload.details)
 
 
@@ -693,6 +851,8 @@ def report_comment(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> models.ModerationReport:
+    if db.get(models.Comment, comment_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
     return services.report_target(
         db, user.id, "comment", comment_id, payload.reason, payload.details
     )

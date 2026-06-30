@@ -173,6 +173,8 @@ Build in a way that can later become App Store compliant:
 - Include content filtering, report flows, block flows, timely moderation surfaces, and contact information.
 - Include account deletion.
 - Keep privacy policy and terms drafts in `docs/` when created.
+- Keep public privacy, terms, community-guidelines, and support links available
+  without authentication once App Store preparation begins.
 - Do not require unnecessary personal data.
 - Do not copy Instagram branding or exact UI details. A vertical swipe feed is acceptable; cloning Instagram is not.
 

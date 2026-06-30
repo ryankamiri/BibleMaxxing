@@ -43,6 +43,12 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - Positive feedback endpoints should validate that the target video exists
   before returning success, so the app never believes it trained the recommender
   on a missing video.
+- Public legal/support pages under `/biblemaxxing/privacy`, `/terms`,
+  `/community`, and `/support` must stay accessible without auth for App Store
+  Connect and unauthenticated iOS links.
+- `services.comment_policy_violation` rejects profanity, threats, slurs, and
+  direct abuse before comments publish. Keep this targeted; do not move all
+  comments to pending unless v1 moderation policy changes.
 - `/biblemaxxing/player/{youtube_video_id}` serves a first-party HTML shell for
   the official YouTube iframe player so iOS gets a stable HTTPS origin/referrer.
   It must never proxy, download, cache, or rehost YouTube audiovisual content.

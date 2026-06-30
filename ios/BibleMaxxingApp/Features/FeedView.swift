@@ -346,8 +346,10 @@ private struct VideoMetadataView: View {
 
                 if let sourceURL = video.sourceURL {
                     Link(destination: sourceURL) {
-                        Label("YouTube", systemImage: "play.rectangle")
+                        Label("Open on YouTube", systemImage: "play.rectangle")
                             .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
                     }
                     .foregroundStyle(.white.opacity(0.82))
                 }
@@ -744,7 +746,7 @@ private extension Comment {
         }
 
         switch moderationStatus {
-        case "approved":
+        case "approved", "visible":
             return "Visible"
         case "hidden":
             return "Hidden"

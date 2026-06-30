@@ -142,6 +142,8 @@ default cycles.
 ## Moderation
 
 - Comments are part of v1 and must be reportable.
+- Reject profanity, threats, slurs, and direct abuse before comments publish;
+  do not hold all comments pending unless Ryan explicitly changes v1 policy.
 - Videos and creators must be reportable/blockable.
 - Admins need a way to review reports and hide/remove content.
 - Keep audit fields for moderation actions.

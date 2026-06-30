@@ -124,6 +124,19 @@ def test_health() -> None:
     assert response.json()["ok"] is True
 
 
+def test_public_compliance_pages_are_accessible_without_auth() -> None:
+    for path, expected_title in (
+        ("/biblemaxxing/privacy", "Privacy Policy"),
+        ("/biblemaxxing/terms", "Terms of Service"),
+        ("/biblemaxxing/community", "Community Guidelines"),
+        ("/biblemaxxing/support", "Support"),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert expected_title in response.text
+        assert "ryanamiri05@gmail.com" in response.text
+
+
 def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
     response = client.get("/biblemaxxing/player/M7lc1UVf-VE?autoplay=1")
     assert response.status_code == 200
@@ -138,6 +151,7 @@ def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
     assert "playlist: videoID" in body
     assert "YT.PlayerState.ENDED" in body
     assert "near_end_poll" in body
+    assert "Open on YouTube" in body
     assert "pointer-events: none" in body
     assert "onPlayerError" in body
     assert "window.webkit.messageHandlers.bibleMaxxingPlayer" in body
@@ -684,6 +698,38 @@ def test_seen_history_exclusions_are_per_signal_and_per_user() -> None:
     assert excluded_ids.isdisjoint(user_feed)
     assert excluded_ids.issubset(other_feed)
     assert "still-new" in user_feed
+
+
+def test_comment_filter_rejects_abusive_or_profane_language_before_publish() -> None:
+    token, _ = register_user("comment-filter@example.com")
+
+    with TestingSessionLocal() as db:
+        creator = add_creator(db, "comment-filter-creator", "Comment Filter Creator")
+        add_video(db, "comment-filter-video", creator, "Prayer and discipleship", ["prayer"])
+        db.commit()
+
+    rejected = client.post(
+        "/biblemaxxing/api/v1/videos/comment-filter-video/comments",
+        headers=auth_headers(token),
+        json={"body": "kys"},
+    )
+    assert rejected.status_code == 400
+    assert "community guidelines" in rejected.json()["detail"]
+
+    comments = client.get(
+        "/biblemaxxing/api/v1/videos/comment-filter-video/comments",
+        headers=auth_headers(token),
+    )
+    assert comments.status_code == 200
+    assert comments.json() == []
+
+    accepted = client.post(
+        "/biblemaxxing/api/v1/videos/comment-filter-video/comments",
+        headers=auth_headers(token),
+        json={"body": "This helped me pray before work."},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["body"] == "This helped me pray before work."
 
 
 def test_watch_time_feedback_is_bounded_by_spiritual_and_theological_quality() -> None:

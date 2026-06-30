@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -87,6 +88,25 @@ NEW_SOURCE_BONUS = 0.05
 NEW_TOPIC_BONUS = 0.04
 MAX_CREATOR_SHARE = 0.25
 MAX_SOURCE_SHARE = 0.25
+COMMENT_BLOCKED_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\bkys\b",
+        r"\bkill\s+yourself\b",
+        r"\bgo\s+die\b",
+        r"\bfuck(?:ing|er|ed)?\b",
+        r"\bshit(?:ty)?\b",
+        r"\bbitch(?:es)?\b",
+        r"\basshole\b",
+        r"\bcunt\b",
+        r"\bnigg(?:er|a)s?\b",
+        r"\bfag(?:got)?s?\b",
+        r"\bretard(?:ed)?\b",
+        r"\bwhore\b",
+        r"\bslut\b",
+        r"\brape\s+(?:you|them|him|her)\b",
+    )
+)
 
 EXCLUDED_KEYWORDS = {
     "mormon",
@@ -176,6 +196,15 @@ def bump_weight(
     if not key:
         return
     weights[key] = clamp(weights.get(key, 0) + delta, lower, upper)
+
+
+def comment_policy_violation(body: str) -> str | None:
+    text = " ".join(body.lower().split())
+    if not text:
+        return "empty"
+    if any(pattern.search(text) for pattern in COMMENT_BLOCKED_PATTERNS):
+        return "abusive_or_profane_language"
+    return None
 
 
 def apply_video_feedback(
