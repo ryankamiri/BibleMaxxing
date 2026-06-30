@@ -19,7 +19,8 @@ Read the root `AGENTS.md` before changing anything here.
   HTTPS origin/referrer.
 - Do not download, cache, store, or expose YouTube MP4/video bytes.
 - Do not implement save-to-camera-roll for YouTube-sourced videos.
-- Use Tap to Start with sound, then auto-play subsequent swipes.
+- Use Tap to Start with sound, auto-play subsequent swipes, and repeat the
+  current video when it ends.
 - Prefer a previous/current/next player model for fast swiping.
 - Prefetch metadata and thumbnails; cue or prepare the next player where allowed.
 - Silently skip unavailable or non-embeddable videos.

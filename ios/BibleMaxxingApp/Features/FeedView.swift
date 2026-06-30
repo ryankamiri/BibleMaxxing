@@ -6,53 +6,45 @@ struct FeedView: View {
     @State private var showSettings = false
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                Color.black.ignoresSafeArea()
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
 
-                if viewModel.isLoading && viewModel.items.isEmpty {
-                    ProgressView("Loading feed")
-                        .tint(.white)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView(.vertical) {
-                        LazyVStack(spacing: 0) {
-                            ForEach(viewModel.items) { item in
-                                FeedItemPage(
-                                    item: item,
-                                    isActive: item.id == viewModel.currentItemID,
-                                    viewModel: viewModel
-                                )
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                                .id(item.id)
-                            }
+            if viewModel.isLoading && viewModel.items.isEmpty {
+                ProgressView("Loading feed")
+                    .tint(.white)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(viewModel.items) { item in
+                            FeedItemPage(
+                                item: item,
+                                isActive: item.id == viewModel.currentItemID,
+                                viewModel: viewModel
+                            )
+                            .containerRelativeFrame([.horizontal, .vertical])
+                            .id(item.id)
                         }
-                        .scrollTargetLayout()
                     }
-                    .scrollTargetBehavior(.paging)
-                    .scrollIndicators(.hidden)
-                    .scrollPosition(id: $viewModel.currentItemID)
+                    .scrollTargetLayout()
                 }
-
-                FeedChrome(
-                    errorMessage: viewModel.errorMessage,
-                    onRefresh: {
-                        Task { await viewModel.reload(using: session.apiClient) }
-                    },
-                    onSettings: {
-                        showSettings = true
-                    }
-                )
-
-                VStack {
-                    Spacer()
-                    Color.black
-                        .frame(height: 32)
-                        .ignoresSafeArea(edges: .bottom)
-                }
-                .allowsHitTesting(false)
+                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
+                .scrollIndicators(.hidden)
+                .scrollPosition(id: $viewModel.currentItemID)
+                .ignoresSafeArea()
+                .background(Color.black)
             }
+
+            FeedChrome(
+                errorMessage: viewModel.errorMessage,
+                onRefresh: {
+                    Task { await viewModel.reload(using: session.apiClient) }
+                },
+                onSettings: {
+                    showSettings = true
+                }
+            )
         }
         .task {
             await viewModel.load(using: session.apiClient)
@@ -169,6 +161,7 @@ private struct VideoFeedPage: View {
                                 isActive: isActive,
                                 shouldAutoplay: viewModel.didTapStart
                             )
+                            .allowsHitTesting(false)
 
                             if !viewModel.didTapStart {
                                 ThumbnailPlaceholder(url: video.thumbnailURL)

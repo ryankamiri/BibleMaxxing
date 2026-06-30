@@ -74,7 +74,8 @@ Future creator uploads are allowed as an architecture consideration only. When i
 - User profiles are public for now.
 - Users can follow creators and topics.
 - Onboarding is required before the first feed. It should collect topic preferences such as prayer, anxiety, discipline, apologetics, workplace holiness, Bible study, worship, testimony, and Christian living.
-- Feed UX: Tap to Start with sound, then subsequent swipes auto-play.
+- Feed UX: Tap to Start with sound, subsequent swipes auto-play, and the
+  current video repeats when it ends.
 - The app should maintain a previous/current/next player window where feasible.
 - Double tap hearts/likes a video.
 - Saves are in-app bookmarks for YouTube videos.

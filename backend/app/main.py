@@ -263,8 +263,10 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
           enablejsapi: 1,
           fs: 0,
           iv_load_policy: 3,
+          loop: 1,
           modestbranding: 1,
           origin: window.location.origin,
+          playlist: videoID,
           playsinline: 1,
           rel: 0,
           widget_referrer: window.location.href
@@ -289,6 +291,11 @@ def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
 
     function onPlayerStateChange(event) {
       post("player_state", { state: event.data });
+      if (event.data === YT.PlayerState.ENDED || event.data === 0) {
+        post("loop", { name: "replayCurrentVideo" });
+        event.target.seekTo(0, true);
+        event.target.playVideo();
+      }
     }
 
     function onAutoplayBlocked() {

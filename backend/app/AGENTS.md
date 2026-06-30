@@ -16,4 +16,6 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - `/biblemaxxing/player/{youtube_video_id}` serves a first-party HTML shell for
   the official YouTube iframe player so iOS gets a stable HTTPS origin/referrer.
   It must never proxy, download, cache, or rehost YouTube audiovisual content.
+- The player shell may use official iframe commands to replay the current video
+  when YouTube reports the ended state.
 - Update this file when backend architecture changes.

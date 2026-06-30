@@ -72,6 +72,9 @@ def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
     assert "https://www.youtube.com/iframe_api" in body
     assert "origin: window.location.origin" in body
     assert "widget_referrer: window.location.href" in body
+    assert "loop: 1" in body
+    assert "playlist: videoID" in body
+    assert "YT.PlayerState.ENDED" in body
     assert "onPlayerError" in body
     assert "window.webkit.messageHandlers.bibleMaxxingPlayer" in body
     assert "download" not in body.lower()
