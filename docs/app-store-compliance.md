@@ -121,8 +121,14 @@ at ryanamiri05@gmail.com for moderation, privacy, or support concerns.
 
 ## Open Items Before TestFlight/App Store
 
-- Apple Developer team/app identifier.
-- Sign in with Apple service ID/client secret setup.
-- Age rating questionnaire.
-- Moderation response process and admin login hardening.
-- Review of YouTube API Services compliance after real ingestion is live.
+- Friend's Apple Developer team, app identifier, certificates/profiles, and
+  App Store Connect access for distribution signing/upload.
+- App Store Connect age rating, privacy questionnaire, screenshots, review
+  notes, and private demo-account password entry.
+- Sign in with Apple service ID/client secret setup only if the button is
+  exposed or any third-party/social login is enabled. The current review build
+  hides Sign in with Apple.
+- Ongoing admin account hardening before broader external use, such as rotating
+  admin passwords and limiting admin access to trusted reviewers.
+- Final human review of YouTube API Services compliance after each material
+  ingestion/playback change.

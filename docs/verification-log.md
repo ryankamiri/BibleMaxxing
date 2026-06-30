@@ -141,16 +141,25 @@ Reviewed: 2026-06-30
   exactly one `philip-anthony-mitchell` source item, no repeated creators,
   max creator share `0.0833`, max aligned source share `0.0833`, recommendation
   eval status `healthy`, and score `91.66`.
-- The latest iOS app, including the admin page, was built for Ryan's connected
-  iPhone 17 Pro Max (`0E6487E2-0018-5DF6-9541-F0099E1FEBAE`), installed, and
-  launched with bundle id `com.ryanamiri.biblemaxxing`.
+- At that checkpoint, the iOS app, including the admin page, was built for
+  Ryan's connected iPhone 17 Pro Max
+  (`0E6487E2-0018-5DF6-9541-F0099E1FEBAE`), installed, and launched with bundle
+  id `com.ryanamiri.biblemaxxing`.
 
-## Remaining Manual Checks
+## Remaining External Or Manual Checks
 
-- Verify YouTube playback manually on Ryan's iPhone after the installed player
-  shell fix.
-- Configure Apple Developer credentials before real Sign in with Apple use.
-- Review/curate the newly ingested approved feed in the admin workflow as the
+- Ryan's physical iPhone 17 Pro Max should get the latest build installed again
+  once `devicectl` shows it as available. The latest iOS hardening build has
+  been verified in Simulator and archived locally, but not reinstalled on the
+  phone because the device is currently unavailable to Xcode tooling.
+- App Store distribution signing and upload require the friend's Apple
+  Developer team, app identifier, certificates/profiles, and App Store Connect
+  access.
+- App Store Connect still requires human-entered metadata, privacy answers, age
+  rating, screenshots, review notes, and the private demo-account password.
+- Sign in with Apple remains hidden in the current review build. Configure Apple
+  credentials before exposing that button or any other third-party/social login.
+- Continue reviewing newly ingested approved videos in the admin workflow as the
   theological safety bar tightens.
 
 ## App Store Pre-Submit Package
