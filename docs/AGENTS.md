@@ -30,6 +30,9 @@ Maintain docs for:
 - `app-store-compliance.md` tracks App Store and TestFlight readiness.
 - `app-review-submission.md` is the App Store Connect handoff for public URLs,
   review notes, metadata wording, and demo account instructions.
+- `app-store-connect-pre-submit.md` is the paste-ready App Store Connect package
+  for metadata, privacy nutrition answers, age rating, screenshots, and
+  signing/upload handoff.
 - `app-store-friend-publishing.md` is the friend-publisher handoff for signing,
   App Store Connect ownership, public URL values, and compliance guardrails.
 - `moderation-account-deletion.md` tracks moderation, reports, blocks, and account deletion behavior.

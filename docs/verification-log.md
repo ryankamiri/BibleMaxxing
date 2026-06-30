@@ -152,3 +152,41 @@ Reviewed: 2026-06-30
 - Configure Apple Developer credentials before real Sign in with Apple use.
 - Review/curate the newly ingested approved feed in the admin workflow as the
   theological safety bar tightens.
+
+## App Store Pre-Submit Package
+
+- At `2026-06-30 21:22:24 UTC`, production health returned
+  `{"ok":true,"service":"biblemaxxing","env":"production"}` after the account
+  deletion privacy patch was deployed to the VPS.
+- Production inventory at the same checkpoint:
+  - total videos: `396`
+  - approved videos: `393`
+  - open reports: `0`
+  - active users: `6`
+  - comments: `17`
+- A live disposable deletion probe created
+  `appstore-deletecheck-*.example.com`, called `DELETE /api/v1/me`, then
+  confirmed:
+  - deleted row had `deleted_at` set
+  - email was anonymized to the `deleted.biblemaxxing.local` namespace
+  - username was anonymized to `deleted-{user_id_without_dashes}`
+  - birthday was cleared
+  - admin flag was false
+  - active sessions count was `0`
+  - reused token returned HTTP `401`
+- Local pre-submit verification passed:
+  - `backend/.venv/bin/python -m ruff check backend scripts/run_evals.py`
+  - `backend/.venv/bin/python -m pytest backend/tests -q`
+  - `xcodebuild -project ios/BibleMaxxing.xcodeproj -scheme BibleMaxxing
+    -configuration Debug -destination
+    'id=52478642-5FE7-4182-B023-5BD6EE03C88A' -derivedDataPath
+    /tmp/BibleMaxxingSubmitDerived CODE_SIGNING_ALLOWED=NO build`
+- Generated iPhone 17 App Store screenshot candidates live in
+  `docs/app-store-assets/screenshots/`:
+  - `iphone17-auth-login.png`
+  - `iphone17-feed-tap-to-start.png`
+  - `iphone17-comments-empty.png`
+  - `iphone17-settings-legal.png`
+- The current build hides the visible Sign in with Apple button until the
+  backend Apple credential exchange is configured, preventing a review-visible
+  501 flow while preserving the future code path.

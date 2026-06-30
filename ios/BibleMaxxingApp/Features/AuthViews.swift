@@ -88,10 +88,12 @@ struct AuthView: View {
                         .foregroundStyle(.black)
                         .disabled(isWorking || email.isEmpty || password.isEmpty || (mode == .register && username.isEmpty))
 
-                        SignInWithAppleButton(.signIn, onRequest: configureAppleRequest, onCompletion: handleAppleCompletion)
-                            .signInWithAppleButtonStyle(.whiteOutline)
-                            .frame(height: 46)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        if Self.isAppleSignInEnabled {
+                            SignInWithAppleButton(.signIn, onRequest: configureAppleRequest, onCompletion: handleAppleCompletion)
+                                .signInWithAppleButtonStyle(.whiteOutline)
+                                .frame(height: 46)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
                     }
                     .padding(16)
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
@@ -171,6 +173,8 @@ struct AuthView: View {
     private static var latestAllowedBirthday: Date {
         Calendar.current.date(byAdding: .year, value: -13, to: Date()) ?? Date()
     }
+
+    private static let isAppleSignInEnabled = false
 
     private static let birthdayFormatter: DateFormatter = {
         let formatter = DateFormatter()

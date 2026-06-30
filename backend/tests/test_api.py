@@ -137,6 +137,91 @@ def test_public_compliance_pages_are_accessible_without_auth() -> None:
         assert "ryanamiri05@gmail.com" in response.text
 
 
+def test_account_deletion_anonymizes_user_and_revokes_session() -> None:
+    token, user = register_user("delete@example.com")
+    user_id = user["id"]
+
+    with TestingSessionLocal() as db:
+        creator = add_creator(db, "delete-check-creator", "Delete Check Creator")
+        add_video(db, "delete-check-video", creator, "Delete check video", ["prayer"])
+        db.add_all(
+            [
+                models.OnboardingPreference(user_id=user_id, topics=["prayer"]),
+                models.FeedImpression(user_id=user_id, video_id="delete-check-video"),
+                models.WatchEvent(user_id=user_id, video_id="delete-check-video"),
+                models.Like(user_id=user_id, video_id="delete-check-video"),
+                models.Save(user_id=user_id, video_id="delete-check-video"),
+                models.NotInterested(user_id=user_id, video_id="delete-check-video"),
+                models.Follow(user_id=user_id, target_type="creator", target_id=creator.id),
+                models.Block(user_id=user_id, target_type="creator", target_id=creator.id),
+                models.ReflectionEvent(user_id=user_id, title="Reflect", body="Pray."),
+                models.Comment(
+                    user_id=user_id,
+                    video_id="delete-check-video",
+                    body="Please remove this with my account.",
+                ),
+                models.ModerationReport(
+                    reporter_id=user_id,
+                    target_type="video",
+                    target_id="delete-check-video",
+                    reason="privacy_check",
+                    details="private report detail",
+                ),
+                models.EvalRun(
+                    scorecard_name="delete-check",
+                    category="recommendation",
+                    status="passing",
+                    overall_score=1.0,
+                    subject_user_id=user_id,
+                ),
+            ]
+        )
+        db.commit()
+
+    response = client.delete("/biblemaxxing/api/v1/me", headers=auth_headers(token))
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
+
+    revoked = client.get("/biblemaxxing/api/v1/me", headers=auth_headers(token))
+    assert revoked.status_code == 401
+
+    with TestingSessionLocal() as db:
+        deleted_user = db.get(models.User, user_id)
+        assert deleted_user is not None
+        assert deleted_user.deleted_at is not None
+        assert deleted_user.username == f"deleted-{user_id.replace('-', '')}"
+        assert deleted_user.email == f"deleted+{user_id}@deleted.biblemaxxing.local"
+        assert deleted_user.birthday is None
+        assert deleted_user.is_admin is False
+        assert deleted_user.onboarding_completed is False
+        assert db.query(models.OnboardingPreference).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.FeedImpression).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.WatchEvent).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.Like).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.Save).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.NotInterested).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.Follow).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.Block).filter_by(user_id=user_id).count() == 0
+        assert db.query(models.ReflectionEvent).filter_by(user_id=user_id).count() == 0
+        comment = db.query(models.Comment).filter_by(user_id=user_id).one()
+        assert comment.body == "[account deleted]"
+        assert comment.moderation_status == "deleted_by_user"
+        report = db.query(models.ModerationReport).filter_by(reporter_id=user_id).one()
+        assert report.details is None
+        assert db.query(models.EvalRun).filter_by(subject_user_id=user_id).count() == 0
+
+    recreated = client.post(
+        "/biblemaxxing/api/v1/auth/register",
+        json={
+            "username": "delete",
+            "email": "delete@example.com",
+            "password": "password123",
+            "birthday": "2005-01-01",
+        },
+    )
+    assert recreated.status_code == 200, recreated.text
+
+
 def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
     response = client.get("/biblemaxxing/player/M7lc1UVf-VE?autoplay=1")
     assert response.status_code == 200

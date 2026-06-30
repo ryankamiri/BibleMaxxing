@@ -61,6 +61,11 @@ Keep the Sign in with Apple path ready if the app offers third-party or social
 login options. For the personal prototype, backend and iOS can include the code
 path even if final Apple Developer configuration is not complete yet.
 
+For the current App Store review build, the visible Sign in with Apple button is
+disabled because the backend Apple credential exchange is not configured. Do not
+re-enable the button until the backend endpoint can complete a real Apple sign
+in flow.
+
 ### Third-Party Video
 
 The app must not imply ownership of YouTube videos. It should:

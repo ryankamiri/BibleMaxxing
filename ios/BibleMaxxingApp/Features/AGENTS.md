@@ -9,6 +9,9 @@ This folder owns user-facing SwiftUI screens and feature view models.
 - Show source attribution and moderation/report/block affordances in the feed.
 - Keep privacy, terms, community-guidelines, and support links visible on the
   unauthenticated auth screen and in Settings.
+- Keep the Sign in with Apple code path available for future Apple Developer
+  setup, but do not expose the button in production UI until the backend
+  endpoint is fully configured and review-ready.
 - Settings may expose the mobile admin dashboard only when
   `session.currentUser?.isAdmin == true`; keep admin screens operational and
   queue-focused rather than marketing-oriented.

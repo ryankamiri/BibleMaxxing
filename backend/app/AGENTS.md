@@ -46,6 +46,10 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - Public legal/support pages under `/biblemaxxing/privacy`, `/terms`,
   `/community`, and `/support` must stay accessible without auth for App Store
   Connect and unauthenticated iOS links.
+- Account deletion must revoke all sessions, mark the user deleted, anonymize
+  account identifiers, clear preference/interaction rows, and tombstone public
+  comments so App Store review sees a real privacy-control flow instead of a
+  login-only soft delete.
 - `services.comment_policy_violation` rejects profanity, threats, slurs, and
   direct abuse before comments publish. Keep this targeted; do not move all
   comments to pending unless v1 moderation policy changes.

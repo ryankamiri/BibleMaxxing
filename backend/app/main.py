@@ -91,6 +91,46 @@ def get_current_session(
     return session
 
 
+def anonymize_deleted_account(db: Session, user: models.User, deleted_at: datetime) -> None:
+    deleted_slug = user.id.replace("-", "")
+    user.username = f"deleted-{deleted_slug}"
+    user.email = f"deleted+{user.id}@deleted.biblemaxxing.local"
+    user.password_hash = hash_password(f"deleted:{user.id}:{deleted_at.isoformat()}")
+    user.birthday = None
+    user.is_admin = False
+    user.onboarding_completed = False
+    user.deleted_at = deleted_at
+
+    db.query(models.UserSession).filter(models.UserSession.user_id == user.id).update(
+        {"revoked_at": deleted_at}, synchronize_session=False
+    )
+    db.query(models.OnboardingPreference).filter_by(user_id=user.id).delete(
+        synchronize_session=False
+    )
+    for model in (
+        models.FeedImpression,
+        models.WatchEvent,
+        models.Like,
+        models.Save,
+        models.NotInterested,
+        models.Follow,
+        models.Block,
+        models.ReflectionEvent,
+    ):
+        db.query(model).filter_by(user_id=user.id).delete(synchronize_session=False)
+
+    db.query(models.Comment).filter_by(user_id=user.id).update(
+        {"body": "[account deleted]", "moderation_status": "deleted_by_user"},
+        synchronize_session=False,
+    )
+    db.query(models.ModerationReport).filter_by(reporter_id=user.id).update(
+        {"details": None}, synchronize_session=False
+    )
+    db.query(models.EvalRun).filter_by(subject_user_id=user.id).update(
+        {"subject_user_id": None}, synchronize_session=False
+    )
+
+
 def require_admin(user: models.User = Depends(get_current_user)) -> models.User:
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
@@ -593,10 +633,7 @@ def me(user: models.User = Depends(get_current_user)) -> models.User:
 def delete_account(
     user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
-    user.deleted_at = datetime.now(UTC)
-    db.query(models.UserSession).filter(models.UserSession.user_id == user.id).update(
-        {"revoked_at": datetime.now(UTC)}
-    )
+    anonymize_deleted_account(db, user, datetime.now(UTC))
     db.commit()
     return {"ok": True}
 

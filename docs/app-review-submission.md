@@ -6,6 +6,9 @@ Use this as the App Store Connect handoff for TestFlight or App Review. Do not
 commit real App Store Connect credentials, Apple credentials, production
 secrets, or the demo account password here.
 
+For the paste-ready metadata, privacy nutrition, age-rating, screenshot, and
+signing package, use `docs/app-store-connect-pre-submit.md`.
+
 ## Public URLs
 
 - Privacy Policy: https://api.tailortom.org/biblemaxxing/privacy
@@ -49,6 +52,10 @@ Users can report videos/comments, block users/creators, delete their account in
 Settings, and contact the app owner at ryanamiri05@gmail.com for moderation,
 privacy, or support concerns. Comments are filtered for profanity/abuse before
 posting and can be reported and moderated through the admin workflow.
+
+Sign in with Apple code exists for future configuration, but the current review
+build exposes only email/password auth because no third-party or social login
+provider is enabled in the UI.
 
 Demo account:
 Email: ryanamiri05+appreview@gmail.com
