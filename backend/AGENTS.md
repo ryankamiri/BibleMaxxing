@@ -53,6 +53,9 @@ Model at least:
   aligned with Ryan's belief profile; current named examples include Philip
   Anthony Mitchell / 2819 Church, Bryce Crawford, and Cliffe Knechtle / Give Me
   An Answer.
+- Aligned pastor/creator sources are trusted influencers. Tag their videos with
+  `trusted-influencer` and use a bounded ranking boost so they appear often
+  without overriding user safety controls or feedback.
 - Do not download, cache, store, transcode, or serve YouTube audiovisual content.
 - Keep the player iframe passive (`pointer-events: none`) and disable YouTube
   embed controls (`controls: 0`) so mobile feed taps do not surface native
@@ -79,6 +82,7 @@ Use:
 - theological safety
 - spiritual usefulness
 - aligned pastor/source signals
+- trusted influencer ranking boosts
 - onboarding topics
 - follows
 - likes

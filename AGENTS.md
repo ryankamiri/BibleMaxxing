@@ -56,6 +56,10 @@ Allowed:
   including Philip Anthony Mitchell / 2819 Church, Bryce Crawford, Cliffe
   Knechtle / Give Me An Answer, Tim Mackie / BibleProject, Gavin Ortlund, John
   Piper, Tim Keller, David Platt, and Matt Chandler.
+- Treat those aligned pastor/creator sources as trusted influencers in the
+  recommender. Their videos should show up often through a bounded ranking
+  boost, while still respecting theological safety, reports, blocks, seen
+  history, and not-interested signals.
 - Store `youtube_video_id`, title, description, channel, thumbnails, duration, tags, topic scores, embeddings, ranking features, moderation status, and source URLs.
 - Play YouTube videos through the official embedded player in the app.
 - Prefetch metadata, thumbnails, feed candidates, ranking results, and next-player shells.
@@ -106,9 +110,10 @@ Priority order:
 
 1. Spiritual usefulness and Christ-centeredness.
 2. Theological safety.
-3. Entertainment and freshness.
-4. Creator diversity.
-5. Watch-time, completion, rewatch, likes, saves, skips, and not-interested signals.
+3. Trusted influencer/source boosts for aligned pastors and creators.
+4. Entertainment and freshness.
+5. Creator diversity.
+6. Watch-time, completion, rewatch, likes, saves, skips, and not-interested signals.
 
 Watch time and rewatch are positive signals, but they must be bounded by theological safety, source quality, diversity, freshness, and anti-addiction rules.
 

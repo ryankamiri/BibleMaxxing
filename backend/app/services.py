@@ -60,6 +60,10 @@ ALIGNED_SOURCE_TOPICS = {
     "the village church": "matt-chandler",
 }
 
+TRUSTED_INFLUENCER_TOPIC = "trusted-influencer"
+PASTOR_CLIPS_TOPIC = "pastor-clips"
+TRUSTED_INFLUENCER_BOOST = 0.22
+
 EXCLUDED_KEYWORDS = {
     "mormon",
     "lds",
@@ -71,6 +75,16 @@ EXCLUDED_KEYWORDS = {
     "law of attraction",
     "rapture chart",
 }
+
+
+def unique_preserving_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique_values: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            unique_values.append(value)
+    return unique_values
 
 
 def reel_fit_score(
@@ -126,7 +140,9 @@ def classify_candidate(candidate: YouTubeCandidate) -> tuple[bool, list[str], fl
     topics = matched[:8]
     if source_matches:
         source_topics = sorted({ALIGNED_SOURCE_TOPICS[source] for source in source_matches})
-        topics = sorted(set(topics + ["pastor-clips", *source_topics]))[:8]
+        topics = unique_preserving_order(
+            [TRUSTED_INFLUENCER_TOPIC, PASTOR_CLIPS_TOPIC, *source_topics, *topics]
+        )
 
     return (
         (bool(matched) or bool(source_matches)) and not excluded,
@@ -167,6 +183,18 @@ def upsert_youtube_candidates(
             db.flush()
 
         moderation_status = "approved" if default_approve else "pending"
+        if TRUSTED_INFLUENCER_TOPIC in topics:
+            creator_profile = creator.theology_profile or {}
+            influencer_slugs = sorted(
+                set(creator_profile.get("trusted_influencer_slugs", []))
+                .union(set(topics).intersection(set(ALIGNED_SOURCE_TOPICS.values())))
+            )
+            creator.theology_profile = {
+                **creator_profile,
+                "trusted_influencer": True,
+                "trusted_influencer_slugs": influencer_slugs,
+            }
+
         fit_score = reel_fit_score(
             candidate.duration_seconds, candidate.title, candidate.description, candidate.tags
         )
@@ -233,6 +261,37 @@ def seed_sample_inventory(db: Session) -> tuple[int, int]:
     return upsert_youtube_candidates(db, samples)
 
 
+def trusted_influencer_boost(video: models.Video) -> float:
+    topics = set(video.topics or [])
+    creator_profile = video.creator.theology_profile if video.creator else None
+    creator_is_trusted = bool(
+        isinstance(creator_profile, dict) and creator_profile.get("trusted_influencer")
+    )
+
+    if TRUSTED_INFLUENCER_TOPIC in topics or creator_is_trusted:
+        return TRUSTED_INFLUENCER_BOOST
+    if topics.intersection(set(ALIGNED_SOURCE_TOPICS.values())):
+        return TRUSTED_INFLUENCER_BOOST * 0.85
+    if PASTOR_CLIPS_TOPIC in topics:
+        return TRUSTED_INFLUENCER_BOOST * 0.7
+    return 0
+
+
+def ranking_score(video: models.Video, preferred_topics: set[str] | None = None) -> float:
+    preferences = preferred_topics or set()
+    topic_boost = len(preferences.intersection(set(video.topics or []))) * 0.15
+    fit_boost = reel_fit_score(video.duration_seconds, video.title, video.description, video.tags)
+    return (
+        video.spiritual_score * 0.32
+        + video.theology_score * 0.25
+        + video.entertainment_score * 0.10
+        + video.freshness_score * 0.09
+        + fit_boost * 0.09
+        + trusted_influencer_boost(video)
+        + topic_boost
+    )
+
+
 def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Video]:
     preference = db.scalar(
         select(models.OnboardingPreference).where(models.OnboardingPreference.user_id == user.id)
@@ -269,21 +328,9 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
         )
     )
 
-    def score(video: models.Video) -> float:
-        topic_boost = len(preferred_topics.intersection(set(video.topics or []))) * 0.15
-        fit_boost = reel_fit_score(
-            video.duration_seconds, video.title, video.description, video.tags
-        )
-        return (
-            video.spiritual_score * 0.34
-            + video.theology_score * 0.26
-            + video.entertainment_score * 0.11
-            + video.freshness_score * 0.10
-            + fit_boost * 0.10
-            + topic_boost
-        )
-
-    return sorted(videos, key=score, reverse=True)[:limit]
+    return sorted(videos, key=lambda video: ranking_score(video, preferred_topics), reverse=True)[
+        :limit
+    ]
 
 
 def should_insert_reflection(db: Session, user: models.User) -> bool:

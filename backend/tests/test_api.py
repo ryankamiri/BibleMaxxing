@@ -5,11 +5,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app import models
 from app.config import Settings
 from app.database import Base, get_db
 from app.main import app
 from app.schemas import YouTubeCandidate
-from app.services import classify_candidate, reel_fit_score
+from app.services import TRUSTED_INFLUENCER_TOPIC, classify_candidate, ranking_score, reel_fit_score
 from app.youtube import parse_datetime, parse_duration
 from app.youtube_worker import build_ingest_query_plan
 
@@ -119,10 +120,57 @@ def test_pastor_clip_source_can_pass_christian_filter() -> None:
     approved, topics, spiritual_score, theology_score = classify_candidate(candidate)
 
     assert approved is True
+    assert TRUSTED_INFLUENCER_TOPIC in topics
     assert "pastor-clips" in topics
     assert "philip-anthony-mitchell" in topics
     assert spiritual_score > 0.5
     assert theology_score > 0.6
+
+
+def test_trusted_influencer_content_gets_bounded_ranking_boost() -> None:
+    creator = models.Creator(
+        id="trusted-creator",
+        handle="@2819-church",
+        display_name="2819 Church",
+        youtube_channel_id="channel-2819",
+        theology_profile={"trusted_influencer": True},
+    )
+    trusted = models.Video(
+        id="trusted-video",
+        creator_id=creator.id,
+        creator=creator,
+        youtube_video_id="trusted1",
+        title="Walk with Christ at work",
+        description="A sermon clip.",
+        source_url="https://www.youtube.com/shorts/trusted1",
+        embed_url="https://www.youtube.com/embed/trusted1",
+        duration_seconds=59,
+        tags=[],
+        topics=[TRUSTED_INFLUENCER_TOPIC, "pastor-clips", "philip-anthony-mitchell"],
+        spiritual_score=0.7,
+        theology_score=0.75,
+        entertainment_score=0.55,
+        freshness_score=0.5,
+    )
+    ordinary = models.Video(
+        id="ordinary-video",
+        creator_id="ordinary-creator",
+        youtube_video_id="ordinary1",
+        title="Walk with Christ at work",
+        description="A good Christian short.",
+        source_url="https://www.youtube.com/shorts/ordinary1",
+        embed_url="https://www.youtube.com/embed/ordinary1",
+        duration_seconds=59,
+        tags=[],
+        topics=["christian", "workplace"],
+        spiritual_score=0.7,
+        theology_score=0.75,
+        entertainment_score=0.55,
+        freshness_score=0.5,
+    )
+
+    assert ranking_score(trusted) > ranking_score(ordinary)
+    assert ranking_score(trusted) - ranking_score(ordinary) < 0.3
 
 
 def test_worker_rotates_pastor_queries_without_overriding_manual_queries() -> None:

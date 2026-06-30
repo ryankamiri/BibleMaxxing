@@ -18,6 +18,9 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - `services.classify_candidate` may use source-aware boosts for explicitly
   aligned pastor/channel names, but broad or ambiguous words should not become
   automatic approval signals.
+- `services.ranking_score` should keep the trusted influencer boost bounded:
+  trusted pastor/creator clips should rank prominently, but not bypass
+  moderation, not-interested, blocks, or seen-history exclusions.
 - `/biblemaxxing/player/{youtube_video_id}` serves a first-party HTML shell for
   the official YouTube iframe player so iOS gets a stable HTTPS origin/referrer.
   It must never proxy, download, cache, or rehost YouTube audiovisual content.
