@@ -797,12 +797,17 @@ final class FeedViewModel: ObservableObject {
     @Published var didTapStart = false
     @Published var isUserPaused = false
     @Published var isLoading = false
+    @Published var isLoadingMore = false
     @Published var errorMessage: String?
     @Published var commentsVideo: FeedVideo?
     @Published var pendingReport: ReportTarget?
 
+    private let feedPageSize = 12
+    private let loadMorePageSize = 24
+    private let loadMoreThreshold = 4
     private var apiClient: APIClient?
     private var hasLoaded = false
+    private var canLoadMore = true
     private var sessionStartedAt = Date()
     private var reflectionInserted = false
     private var playbackStartedAt: Date?
@@ -820,9 +825,12 @@ final class FeedViewModel: ObservableObject {
         self.apiClient = apiClient
         isLoading = true
         defer { isLoading = false }
+        canLoadMore = true
+        reflectionInserted = false
+        sessionStartedAt = Date()
 
         do {
-            let response = try await apiClient.fetchFeed()
+            let response = try await apiClient.fetchFeed(limit: feedPageSize)
             items = response.items.filter { item in
                 item.itemType == .reflection || item.video?.youtubeVideoID.isEmpty == false
             }
@@ -830,6 +838,7 @@ final class FeedViewModel: ObservableObject {
 
             if items.isEmpty {
                 items = SampleData.fallbackFeed
+                canLoadMore = false
                 errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
             }
 
@@ -838,6 +847,7 @@ final class FeedViewModel: ObservableObject {
         } catch {
             items = SampleData.fallbackFeed
             currentItemID = items.first?.id
+            canLoadMore = false
             errorMessage = "We couldn't load new videos. Showing a reflection while we reconnect."
         }
     }
@@ -900,6 +910,7 @@ final class FeedViewModel: ObservableObject {
                 await recordWatch(videoID: video.id, secondsWatched: 0, percentComplete: 0, rewatched: false, eventType: .start)
             }
         }
+        await loadMoreIfNeeded(afterShowing: itemID)
     }
 
     func isPrepared(itemID: String) -> Bool {
@@ -945,6 +956,7 @@ final class FeedViewModel: ObservableObject {
 
         do {
             try await apiClient?.markNotInterested(videoID: video.id, reason: "not_interested")
+            await loadMoreIfNeeded(afterShowing: currentItemID)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -986,6 +998,7 @@ final class FeedViewModel: ObservableObject {
         do {
             try await apiClient?.blockCreator(creatorID: creator.id)
             errorMessage = "Blocked \(creator.feedName)."
+            await loadMoreIfNeeded(afterShowing: currentItemID)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1044,6 +1057,47 @@ final class FeedViewModel: ObservableObject {
             isCreatorFollowed: nil
         )
         items.insert(item, at: min(currentIndex + 1, items.endIndex))
+    }
+
+    private func loadMoreIfNeeded(afterShowing itemID: String?) async {
+        guard let itemID, let currentIndex = index(for: itemID) else { return }
+        guard canLoadMore, !isLoadingMore, !items.isEmpty else { return }
+        guard items.count - currentIndex - 1 <= loadMoreThreshold else { return }
+        guard let apiClient else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let loadedVideoIDs = Set(items.compactMap { $0.video?.id })
+            let loadedReflectionIDs = Set(items.compactMap { $0.reflection?.id })
+            let response = try await apiClient.fetchFeed(
+                limit: loadMorePageSize,
+                excludingVideoIDs: Array(loadedVideoIDs)
+            )
+            let newItems = response.items.filter { item in
+                guard item.itemType == .reflection || item.video?.youtubeVideoID.isEmpty == false else {
+                    return false
+                }
+                if let videoID = item.video?.id {
+                    return !loadedVideoIDs.contains(videoID)
+                }
+                if let reflectionID = item.reflection?.id {
+                    return !loadedReflectionIDs.contains(reflectionID)
+                }
+                return !items.contains { $0.id == item.id }
+            }
+
+            if newItems.isEmpty {
+                canLoadMore = false
+                return
+            }
+
+            items.append(contentsOf: newItems)
+            errorMessage = nil
+        } catch {
+            errorMessage = "We couldn't load more videos. Try refreshing if the feed stops."
+        }
     }
 
     private func recordImpression(videoID: String, position: Int) async {

@@ -43,6 +43,9 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - Positive feedback endpoints should validate that the target video exists
   before returning success, so the app never believes it trained the recommender
   on a missing video.
+- `/feed` supports repeated `exclude_video_ids` query parameters for iOS
+  infinite-scroll append calls; keep these exclusions additive with seen-history,
+  block, not-interested, like, and save exclusions.
 - Public legal/support pages under `/biblemaxxing/privacy`, `/terms`,
   `/community`, and `/support` must stay accessible without auth for App Store
   Connect and unauthenticated iOS links.

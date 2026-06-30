@@ -45,6 +45,7 @@ Exercise at least:
 - login
 - onboarding
 - feed
+- feed append/infinite scroll with repeated `exclude_video_ids`
 - impression/watch event
 - like/unlike
 - save/unsave
@@ -99,6 +100,8 @@ Manual checks:
 - Feed is vertical and dark mode.
 - First playback requires Tap to Start with sound.
 - Subsequent swipes cue/play.
+- Scrolling near the final loaded cards appends more feed items without
+  duplicate videos or a stranded end state.
 - Double tap likes.
 - Save/bookmark works.
 - Comments, reports, blocks, and not-interested are reachable.

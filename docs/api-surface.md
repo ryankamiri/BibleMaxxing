@@ -23,7 +23,8 @@ Public examples therefore look like:
 - Authenticated endpoints use `Authorization: Bearer <access_token>`.
 - Use stable opaque IDs for user-facing resources.
 - Current prototype responses use FastAPI's default `detail` error shape.
-- Cursor pagination is a near-term follow-up; the current feed uses `limit`.
+- The current feed uses `limit` plus repeated `exclude_video_ids` query
+  parameters for append-style infinite scroll.
 
 ## Health And Metadata
 
@@ -99,7 +100,7 @@ Minimum onboarding topics:
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/feed?limit=10` | Yes | Personalized vertical feed candidates. |
+| `GET` | `/api/v1/feed?limit=10&exclude_video_ids=vid_1` | Yes | Personalized vertical feed candidates. Repeat `exclude_video_ids` for already-loaded videos when appending more feed items. |
 | `POST` | `/api/v1/feed/impressions` | Yes | Record cards shown to the user. |
 | `POST` | `/api/v1/videos/{video_id}/watch` | Yes | Watch, skip, completion, rewatch, and dwell events. |
 | `POST` | `/api/v1/watch-events` | Yes | Compatibility alias used by the iOS client. |
@@ -132,8 +133,7 @@ Feed item response:
       "scripture_reference": "Colossians 3:23",
       "prompt": "How can this next work block become worship?"
     }
-  ],
-  "next_cursor": "cursor_abc"
+  ]
 }
 ```
 
@@ -142,6 +142,8 @@ Feed rules:
 - Do not return videos with moderation status `rejected`, `hidden`, `blocked`,
   `private`, `deleted`, `age_restricted`, or `non_embeddable`.
 - Include enough source metadata for in-app attribution.
+- Exclude repeated `exclude_video_ids` values in addition to already-seen
+  impressions, watches, likes, saves, not-interested rows, and creator blocks.
 - Reflection cards should appear after about 10 minutes of scrolling and when
   binge-like behavior is detected.
 

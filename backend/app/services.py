@@ -675,8 +675,14 @@ def diversify_ranked_videos(
     return selected
 
 
-def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Video]:
+def feed_for_user(
+    db: Session,
+    user: models.User,
+    limit: int,
+    excluded_video_ids: set[str] | None = None,
+) -> list[models.Video]:
     interest_profile = user_interest_profile(db, user)
+    excluded_video_ids = excluded_video_ids or set()
 
     hidden_video_ids = select(models.NotInterested.video_id).where(
         models.NotInterested.user_id == user.id
@@ -693,20 +699,22 @@ def feed_for_user(db: Session, user: models.User, limit: int) -> list[models.Vid
         and_(models.Block.user_id == user.id, models.Block.target_type == "creator")
     )
 
-    videos = list(
-        db.scalars(
-            select(models.Video)
-            .options(joinedload(models.Video.creator))
-            .where(models.Video.moderation_status == "approved")
-            .where(models.Video.is_embeddable.is_(True))
-            .where(models.Video.id.not_in(hidden_video_ids))
-            .where(models.Video.id.not_in(impression_video_ids))
-            .where(models.Video.id.not_in(watched_video_ids))
-            .where(models.Video.id.not_in(liked_video_ids))
-            .where(models.Video.id.not_in(saved_video_ids))
-            .where(models.Video.creator_id.not_in(blocked_creator_ids))
-        )
+    query = (
+        select(models.Video)
+        .options(joinedload(models.Video.creator))
+        .where(models.Video.moderation_status == "approved")
+        .where(models.Video.is_embeddable.is_(True))
+        .where(models.Video.id.not_in(hidden_video_ids))
+        .where(models.Video.id.not_in(impression_video_ids))
+        .where(models.Video.id.not_in(watched_video_ids))
+        .where(models.Video.id.not_in(liked_video_ids))
+        .where(models.Video.id.not_in(saved_video_ids))
+        .where(models.Video.creator_id.not_in(blocked_creator_ids))
     )
+    if excluded_video_ids:
+        query = query.where(models.Video.id.not_in(excluded_video_ids))
+
+    videos = list(db.scalars(query))
 
     return diversify_ranked_videos(videos, interest_profile, limit)
 

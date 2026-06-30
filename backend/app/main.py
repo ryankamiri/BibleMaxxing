@@ -672,10 +672,11 @@ def save_onboarding(
 @app.get(f"{API_PREFIX}/feed", response_model=schemas.FeedResponse)
 def feed(
     limit: int = Query(default=12, ge=1, le=50),
+    exclude_video_ids: list[str] | None = Query(default=None),
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> schemas.FeedResponse:
-    videos = services.feed_for_user(db, user, limit)
+    videos = services.feed_for_user(db, user, limit, set(exclude_video_ids or []))
     items: list[schemas.FeedItem] = []
     if services.should_insert_reflection(db, user):
         items.append(

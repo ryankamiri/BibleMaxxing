@@ -197,3 +197,35 @@ Reviewed: 2026-06-30
   ryankamiri@icloud.com (LWASV7VRQ6)`. This validates archiveability but does
   not satisfy the still-external App Store distribution-signing/upload step
   under the friend's Apple Developer team.
+
+## Infinite Scroll Verification
+
+- At `2026-06-30 22:05:08 UTC`, the backend `/feed` endpoint accepted repeated
+  `exclude_video_ids` query parameters for append-style feed loading. Those
+  exclusions are additive with already-seen impressions, watches, likes, saves,
+  not-interested rows, and creator blocks.
+- The iOS feed now fetches an initial `12` items, requests another `24` when the
+  user gets within the final `4` loaded cards, passes all loaded video IDs back
+  as exclusions, and client-side de-dupes appended video/reflection items.
+- Local verification after the infinite-scroll patch passed:
+  - `backend/.venv/bin/python -m ruff check backend scripts/run_evals.py`
+  - `backend/.venv/bin/python -m pytest backend/tests -q` with
+    `26 passed, 4 warnings`
+  - `xcodebuild -project ios/BibleMaxxing.xcodeproj -scheme BibleMaxxing
+    -configuration Debug -destination
+    'id=52478642-5FE7-4182-B023-5BD6EE03C88A' -derivedDataPath
+    /tmp/BibleMaxxingSubmitDerived CODE_SIGNING_ALLOWED=NO build`
+- Production was rebuilt and restarted with the updated API. Live health
+  returned `{"ok":true,"service":"biblemaxxing","env":"production"}`.
+- A live production disposable-user probe fetched `/feed?limit=5`, then fetched
+  `/feed?limit=8` with the first page's video IDs repeated as
+  `exclude_video_ids`; page 2 returned `8` videos and `duplicates` was `[]`.
+- The updated simulator build installed and launched successfully on the iPhone
+  17 simulator. Ryan's physical iPhone 17 Pro Max was listed as unavailable at
+  this checkpoint, so the latest build was not reinstalled on device.
+- A fresh local Release archive succeeded at
+  `/tmp/BibleMaxxingArchive/BibleMaxxing.xcarchive` with bundle id
+  `com.ryanamiri.biblemaxxing` and signing identity `Apple Development:
+  ryankamiri@icloud.com (LWASV7VRQ6)`. App Store distribution signing/upload
+  still requires the friend's Apple Developer team credentials or App Store
+  Connect access.

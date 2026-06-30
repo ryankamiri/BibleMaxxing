@@ -785,6 +785,44 @@ def test_seen_history_exclusions_are_per_signal_and_per_user() -> None:
     assert "still-new" in user_feed
 
 
+def test_feed_excludes_client_loaded_ids_for_infinite_scroll() -> None:
+    token, _ = register_user("infinite-scroll@example.com")
+
+    with TestingSessionLocal() as db:
+        creator = add_creator(db, "infinite-scroll-creator", "Infinite Scroll Creator")
+        for index in range(5):
+            add_video(
+                db,
+                f"infinite-scroll-video-{index}",
+                creator,
+                f"Infinite scroll video {index}",
+                ["discipleship"],
+            )
+        db.commit()
+
+    response = client.get(
+        "/biblemaxxing/api/v1/feed",
+        headers=auth_headers(token),
+        params=[
+            ("limit", "5"),
+            ("exclude_video_ids", "infinite-scroll-video-0"),
+            ("exclude_video_ids", "infinite-scroll-video-1"),
+        ],
+    )
+
+    assert response.status_code == 200, response.text
+    video_ids = {
+        item["video"]["id"] for item in response.json()["items"] if item["type"] == "video"
+    }
+    assert "infinite-scroll-video-0" not in video_ids
+    assert "infinite-scroll-video-1" not in video_ids
+    assert {
+        "infinite-scroll-video-2",
+        "infinite-scroll-video-3",
+        "infinite-scroll-video-4",
+    }.issubset(video_ids)
+
+
 def test_comment_filter_rejects_abusive_or_profane_language_before_publish() -> None:
     token, _ = register_user("comment-filter@example.com")
 

@@ -7,6 +7,9 @@ This folder owns user-facing SwiftUI screens and feature view models.
   backend, endpoint, or local-token language to users.
 - Keep API calls in view models or session services rather than deeply inside view layout.
 - Show source attribution and moderation/report/block affordances in the feed.
+- Keep feed scrolling appendable: when the user gets close to the last loaded
+  card, fetch more while passing loaded video IDs as exclusions so native paging
+  does not strand them at the end or append duplicate tail items.
 - Keep privacy, terms, community-guidelines, and support links visible on the
   unauthenticated auth screen and in Settings.
 - Keep the Sign in with Apple code path available for future Apple Developer

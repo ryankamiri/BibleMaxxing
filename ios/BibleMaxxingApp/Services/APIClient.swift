@@ -100,8 +100,11 @@ final class APIClient {
         )
     }
 
-    func fetchFeed(limit: Int = 12) async throws -> FeedResponse {
-        let query = [URLQueryItem(name: "limit", value: String(limit))]
+    func fetchFeed(limit: Int = 12, excludingVideoIDs: [String] = []) async throws -> FeedResponse {
+        var query = [URLQueryItem(name: "limit", value: String(limit))]
+        query.append(contentsOf: excludingVideoIDs.map { videoID in
+            URLQueryItem(name: "exclude_video_ids", value: videoID)
+        })
         return try await request("/feed", method: "GET", query: query)
     }
 
