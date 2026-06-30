@@ -145,13 +145,17 @@ private struct VideoFeedPage: View {
     let video: FeedVideo
     let isActive: Bool
     @ObservedObject var viewModel: FeedViewModel
-    @Environment(\.openURL) private var openURL
+    @EnvironmentObject private var session: SessionStore
 
     var body: some View {
         ZStack {
             if viewModel.isPrepared(itemID: item.id) {
                 YouTubePlayerView(
                     videoID: video.youtubeVideoID,
+                    playerURL: session.apiClient.youtubePlayerPageURL(
+                        videoID: video.youtubeVideoID,
+                        autoplay: isActive && viewModel.didTapStart
+                    ),
                     isActive: isActive,
                     shouldAutoplay: viewModel.didTapStart
                 )

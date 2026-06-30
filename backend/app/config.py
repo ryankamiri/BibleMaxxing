@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         "Bible study shorts Jesus|worship shorts Christian|Christian testimony shorts"
     )
     youtube_ingest_max_results: int = 25
-    youtube_ingest_interval_seconds: int = 60 * 60 * 6
+    youtube_ingest_interval_seconds: int = 60 * 60 * 2
     youtube_ingest_default_approve: bool = True
     auto_create_tables: bool = True
     cors_origins: str = "*"

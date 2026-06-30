@@ -1,121 +1,138 @@
+import OSLog
 import SwiftUI
 import WebKit
 
 struct YouTubePlayerView: UIViewRepresentable {
     let videoID: String
+    let playerURL: URL
     let isActive: Bool
     let shouldAutoplay: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(videoID: videoID)
     }
 
     func makeUIView(context: Context) -> WKWebView {
+        let contentController = WKUserContentController()
+        contentController.add(context.coordinator, name: Coordinator.messageHandlerName)
+
         let configuration = WKWebViewConfiguration()
         configuration.allowsInlineMediaPlayback = true
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.userContentController = contentController
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .black
+        webView.navigationDelegate = context.coordinator
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.backgroundColor = .black
-        load(videoID: videoID, into: webView)
-        context.coordinator.loadedVideoID = videoID
+        load(playerURL, videoID: videoID, into: webView, context: context)
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.videoID = videoID
+
         if context.coordinator.loadedVideoID != videoID {
-            load(videoID: videoID, into: webView)
-            context.coordinator.loadedVideoID = videoID
+            load(playerURL, videoID: videoID, into: webView, context: context)
         }
 
-        let command = isActive && shouldAutoplay ? "playVideo()" : "pauseVideo()"
-        webView.evaluateJavaScript(command)
+        context.coordinator.setDesiredPlayback(isActive && shouldAutoplay, in: webView)
     }
 
-    private func load(videoID: String, into webView: WKWebView) {
-        webView.loadHTMLString(html(videoID: videoID, autoplay: shouldAutoplay), baseURL: URL(string: "https://www.youtube.com"))
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        uiView.stopLoading()
+        uiView.navigationDelegate = nil
+        uiView.configuration.userContentController.removeScriptMessageHandler(
+            forName: Coordinator.messageHandlerName
+        )
     }
 
-    private func html(videoID: String, autoplay: Bool) -> String {
-        let escapedVideoID = videoID.jsEscaped
-        let autoplayValue = autoplay ? 1 : 0
-
-        return #"""
-        <!doctype html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-          <style>
-            html, body, #player {
-              background: #000;
-              height: 100%;
-              margin: 0;
-              overflow: hidden;
-              width: 100%;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="player"></div>
-          <script src="https://www.youtube.com/iframe_api"></script>
-          <script>
-            var player;
-            function onYouTubeIframeAPIReady() {
-              player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                videoId: '\#(escapedVideoID)',
-                playerVars: {
-                  autoplay: \#(autoplayValue),
-                  controls: 1,
-                  enablejsapi: 1,
-                  fs: 0,
-                  modestbranding: 1,
-                  playsinline: 1,
-                  rel: 0
-                },
-                events: {
-                  'onReady': function(event) {
-                    if (\#(autoplayValue) === 1) {
-                      event.target.unMute();
-                      event.target.playVideo();
-                    }
-                  }
-                }
-              });
-            }
-
-            function playVideo() {
-              if (player && player.playVideo) {
-                player.unMute();
-                player.playVideo();
-              }
-            }
-
-            function pauseVideo() {
-              if (player && player.pauseVideo) {
-                player.pauseVideo();
-              }
-            }
-          </script>
-        </body>
-        </html>
-        """#
+    private func load(
+        _ playerURL: URL,
+        videoID: String,
+        into webView: WKWebView,
+        context: Context
+    ) {
+        var request = URLRequest(
+            url: playerURL,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 20
+        )
+        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        context.coordinator.loadedVideoID = videoID
+        webView.load(request)
     }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        static let messageHandlerName = "bibleMaxxingPlayer"
+
+        var videoID: String
         var loadedVideoID: String?
-    }
-}
+        private var desiredPlayback = false
+        private let logger = Logger(subsystem: "BibleMaxxing", category: "YouTubePlayer")
 
-private extension String {
-    var jsEscaped: String {
-        replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "")
+        init(videoID: String) {
+            self.videoID = videoID
+        }
+
+        func setDesiredPlayback(_ shouldPlay: Bool, in webView: WKWebView) {
+            guard desiredPlayback != shouldPlay else { return }
+            desiredPlayback = shouldPlay
+            evaluatePlaybackCommand(shouldPlay ? "playVideo()" : "pauseVideo()", in: webView)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            logger.debug("YouTube player page loaded for \(self.videoID, privacy: .public)")
+            if desiredPlayback {
+                evaluatePlaybackCommand("playVideo()", in: webView)
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            logger.error(
+                "YouTube player navigation failed for \(self.videoID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            logger.error(
+                "YouTube player provisional navigation failed for \(self.videoID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            let body = String(describing: message.body)
+            if let payload = message.body as? [String: Any],
+               let type = payload["type"] as? String,
+               ["player_error", "unavailable", "window_error"].contains(type) {
+                logger.error("YouTube player JS message: \(body, privacy: .public)")
+            } else {
+                logger.info("YouTube player JS message: \(body, privacy: .public)")
+            }
+        }
+
+        private func evaluatePlaybackCommand(_ command: String, in webView: WKWebView) {
+            webView.evaluateJavaScript(command) { [logger, videoID] _, error in
+                if let error {
+                    logger.debug(
+                        "YouTube player command \(command, privacy: .public) for \(videoID, privacy: .public) was not ready: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+        }
     }
 }

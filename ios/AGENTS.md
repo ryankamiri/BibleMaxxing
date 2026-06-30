@@ -14,7 +14,9 @@ Read the root `AGENTS.md` before changing anything here.
 
 ## Feed Playback
 
-- Use YouTube embedded playback for v1.
+- Use YouTube embedded playback for v1, loaded through the backend-hosted
+  `/biblemaxxing/player/{youtube_video_id}` shell so `WKWebView` has a stable
+  HTTPS origin/referrer.
 - Do not download, cache, store, or expose YouTube MP4/video bytes.
 - Do not implement save-to-camera-roll for YouTube-sourced videos.
 - Use Tap to Start with sound, then auto-play subsequent swipes.
@@ -56,4 +58,4 @@ Read the root `AGENTS.md` before changing anything here.
 - Reusable UI and YouTube embed wrapper: `BibleMaxxingApp/Components/`.
 - Feature screens: `BibleMaxxingApp/Features/`.
 
-The app points at `https://api.tailortom.org/biblemaxxing/api/v1` and stores bearer tokens in Keychain. Feed video playback is through the official YouTube iframe player in `WKWebView`; do not add MP4 download, offline playback, or save-to-camera-roll behavior.
+The app points at `https://api.tailortom.org/biblemaxxing/api/v1` and stores bearer tokens in Keychain. Feed video playback is through the backend-hosted official YouTube iframe player shell in `WKWebView`; do not add MP4 download, offline playback, or save-to-camera-roll behavior.

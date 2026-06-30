@@ -80,6 +80,25 @@ final class APIClient {
         return try await request("/feed", method: "GET", query: query)
     }
 
+    func youtubePlayerPageURL(videoID: String, autoplay: Bool = false) -> URL {
+        var serviceRoot = baseURL
+        if serviceRoot.lastPathComponent == "v1" {
+            serviceRoot.deleteLastPathComponent()
+        }
+        if serviceRoot.lastPathComponent == "api" {
+            serviceRoot.deleteLastPathComponent()
+        }
+
+        let playerURL = serviceRoot
+            .appendingPathComponent("player")
+            .appendingPathComponent(videoID)
+        var components = URLComponents(url: playerURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "autoplay", value: autoplay ? "1" : "0")
+        ]
+        return components?.url ?? playerURL
+    }
+
     func recordFeedImpression(videoID: String, position: Int) async throws {
         try await requestEmpty(
             "/feed/impressions",

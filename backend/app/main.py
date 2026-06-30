@@ -1,7 +1,10 @@
+import json
+import re
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +34,7 @@ app.add_middleware(
 
 bearer = HTTPBearer(auto_error=False)
 API_PREFIX = "/biblemaxxing/api/v1"
+YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
 
 
 @app.on_event("startup")
@@ -95,6 +99,241 @@ def require_admin(user: models.User = Depends(get_current_user)) -> models.User:
 @app.get("/biblemaxxing/health")
 def health() -> dict:
     return {"ok": True, "service": "biblemaxxing", "env": settings.env}
+
+
+@app.get("/biblemaxxing/player/{youtube_video_id}", response_class=HTMLResponse)
+def youtube_player_page(
+    youtube_video_id: str, autoplay: bool = Query(default=False)
+) -> HTMLResponse:
+    if YOUTUBE_VIDEO_ID_PATTERN.fullmatch(youtube_video_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid YouTube video ID"
+        )
+
+    return HTMLResponse(
+        content=youtube_player_document(youtube_video_id, autoplay),
+        headers={
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def youtube_player_document(youtube_video_id: str, autoplay: bool) -> str:
+    video_id = json.dumps(youtube_video_id)
+    watch_url = json.dumps(f"https://www.youtube.com/watch?v={youtube_video_id}")
+    autoplay_js = "true" if autoplay else "false"
+
+    return (
+        """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <style>
+    html, body, #player {
+      background: #000;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    body {
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    }
+
+    #fallback {
+      align-items: center;
+      background: #000;
+      box-sizing: border-box;
+      display: none;
+      inset: 0;
+      justify-content: center;
+      padding: 28px;
+      position: fixed;
+      text-align: center;
+    }
+
+    #fallback.visible {
+      display: flex;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .body {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 14px;
+      line-height: 1.38;
+      margin-bottom: 16px;
+      max-width: 280px;
+    }
+
+    a {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <div id="fallback" role="status" aria-live="polite">
+    <div>
+      <div class="title">Video unavailable</div>
+      <div class="body" id="fallback-message">
+        This YouTube video cannot be played here. Swipe for another video.
+      </div>
+      <a id="source-link" rel="noopener">Open on YouTube</a>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const videoID = __VIDEO_ID__;
+    const watchURL = __WATCH_URL__;
+    const shouldAutoplay = __AUTOPLAY__;
+    const fallback = document.getElementById("fallback");
+    const fallbackMessage = document.getElementById("fallback-message");
+    const sourceLink = document.getElementById("source-link");
+    sourceLink.href = watchURL;
+
+    let player = null;
+    let pendingPlay = false;
+
+    function post(type, payload) {
+      const message = Object.assign({
+        type: type,
+        videoID: videoID,
+        origin: window.location.origin,
+        href: window.location.href
+      }, payload || {});
+
+      console.log("[BibleMaxxingPlayer]", JSON.stringify(message));
+
+      if (
+        window.webkit &&
+        window.webkit.messageHandlers &&
+        window.webkit.messageHandlers.bibleMaxxingPlayer
+      ) {
+        window.webkit.messageHandlers.bibleMaxxingPlayer.postMessage(message);
+      }
+    }
+
+    window.addEventListener("error", function(event) {
+      post("window_error", {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno
+      });
+    });
+
+    window.addEventListener("unhandledrejection", function(event) {
+      post("promise_rejection", { message: String(event.reason) });
+    });
+
+    function showUnavailable(message) {
+      fallbackMessage.textContent = message;
+      fallback.classList.add("visible");
+      post("unavailable", { message: message });
+    }
+
+    function onYouTubeIframeAPIReady() {
+      post("iframe_api_ready");
+
+      player = new YT.Player("player", {
+        height: "100%",
+        width: "100%",
+        videoId: videoID,
+        playerVars: {
+          autoplay: shouldAutoplay ? 1 : 0,
+          controls: 1,
+          enablejsapi: 1,
+          fs: 0,
+          origin: window.location.origin,
+          playsinline: 1,
+          rel: 0,
+          widget_referrer: window.location.href
+        },
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange,
+          onError: onPlayerError,
+          onAutoplayBlocked: onAutoplayBlocked
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+      post("player_ready");
+      if (shouldAutoplay || pendingPlay) {
+        event.target.unMute();
+        event.target.playVideo();
+        pendingPlay = false;
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      post("player_state", { state: event.data });
+    }
+
+    function onAutoplayBlocked() {
+      post("autoplay_blocked");
+    }
+
+    function onPlayerError(event) {
+      const code = event && typeof event.data !== "undefined" ? String(event.data) : "unknown";
+      const messages = {
+        "2": "This YouTube video ID is invalid.",
+        "5": "This video cannot be played in this embedded player.",
+        "100": "This video is private, deleted, or unavailable.",
+        "101": "This video owner does not allow embedded playback.",
+        "150": "This video owner does not allow embedded playback."
+      };
+      const message = messages[code] || "This YouTube video cannot be played here.";
+      post("player_error", { code: code, message: message });
+      showUnavailable(message);
+    }
+
+    function playVideo() {
+      pendingPlay = true;
+      if (player && player.playVideo) {
+        player.unMute();
+        player.playVideo();
+        pendingPlay = false;
+        post("command", { name: "playVideo" });
+      } else {
+        post("command_queued", { name: "playVideo" });
+      }
+    }
+
+    function pauseVideo() {
+      pendingPlay = false;
+      if (player && player.pauseVideo) {
+        player.pauseVideo();
+        post("command", { name: "pauseVideo" });
+      }
+    }
+  </script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
+""".replace("__VIDEO_ID__", video_id)
+        .replace("__WATCH_URL__", watch_url)
+        .replace("__AUTOPLAY__", autoplay_js)
+    )
 
 
 @app.post(f"{API_PREFIX}/auth/register", response_model=schemas.AuthResponse)

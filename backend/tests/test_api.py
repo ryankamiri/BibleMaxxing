@@ -63,6 +63,23 @@ def test_health() -> None:
     assert response.json()["ok"] is True
 
 
+def test_youtube_player_page_sets_embed_identity_and_error_handling() -> None:
+    response = client.get("/biblemaxxing/player/M7lc1UVf-VE?autoplay=1")
+    assert response.status_code == 200
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+    body = response.text
+    assert "https://www.youtube.com/iframe_api" in body
+    assert "origin: window.location.origin" in body
+    assert "widget_referrer: window.location.href" in body
+    assert "onPlayerError" in body
+    assert "window.webkit.messageHandlers.bibleMaxxingPlayer" in body
+    assert "download" not in body.lower()
+
+    invalid = client.get("/biblemaxxing/player/not-a-real-youtube-video-id")
+    assert invalid.status_code == 400
+
+
 def test_youtube_metadata_parsers() -> None:
     assert parse_duration("PT1M05S") == 65
     assert parse_duration("PT2H3M4S") == 7384

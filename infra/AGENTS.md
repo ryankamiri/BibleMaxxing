@@ -32,6 +32,8 @@ The safest BibleMaxxing deployment path is:
 - Back up Caddyfile/compose files before editing on the VPS.
 - Use Docker health checks.
 - Use env files for secrets and never commit real env values.
+- Deployment sync scripts must exclude local env files, SQLite/dev databases,
+  virtualenvs, caches, and generated Python metadata.
 - Keep deployment commands repeatable and documented.
 - Keep `deployment-plan.md`, `docker-compose.biblemaxxing.example.yml`, `Caddyfile.biblemaxxing.example`, and `biblemaxxing.env.example` in sync with the live deployment shape.
 - Helper scripts must be guarded, explicit, and safe for a shared TailorTom VPS; do not auto-patch live Caddy unless Ryan asks.

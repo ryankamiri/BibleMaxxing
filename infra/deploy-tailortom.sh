@@ -45,10 +45,15 @@ sync_assets() {
   ssh "$REMOTE_HOST" "sudo mkdir -p '$REMOTE_APP_DIR' && sudo chown \$USER:\$USER '$REMOTE_APP_DIR'"
   rsync -av --delete \
     --exclude '.venv' \
+    --exclude '.env' \
+    --exclude '.env.*' \
     --exclude '__pycache__' \
     --exclude '.pytest_cache' \
     --exclude '.ruff_cache' \
     --exclude '*.egg-info' \
+    --exclude '*.db' \
+    --exclude '*.sqlite' \
+    --exclude '*.sqlite-*' \
     backend/ "$REMOTE_HOST:$REMOTE_APP_DIR/backend/"
   rsync -av infra/docker-compose.biblemaxxing.example.yml "$REMOTE_HOST:$REMOTE_APP_DIR/docker-compose.yml"
   rsync -av infra/biblemaxxing.env.example "$REMOTE_HOST:$REMOTE_APP_DIR/.env.example"
