@@ -33,6 +33,44 @@ For the overnight build contract, read `goal.md` after this file. It contains th
 - Use subagents aggressively for parallel research, implementation, QA, and deployment work, but the CTO agent owns final integration, verification, and product judgment.
 - Subagents must read all relevant `AGENTS.md` files before touching their assigned area and must update those files when their changes alter architecture or behavior.
 
+## Friend Publisher Agent Handoff
+
+If you are Ryan's friend's agent helping publish BibleMaxxing through the
+friend's Apple Developer account, start here:
+
+- Read `docs/pre-submit-completion-audit.md`,
+  `docs/app-store-friend-publishing.md`,
+  `docs/app-store-connect-pre-submit.md`, and
+  `docs/app-review-submission.md` before changing anything.
+- Treat the source branch `master` as the handoff branch. Verify with
+  `git status --short`, `git log --oneline -1`, and the checks listed in
+  `docs/pre-submit-completion-audit.md`.
+- Prefer cloning the GitHub repo. If using a zip, generate it from the current
+  `HEAD` with:
+  `git archive --format=zip HEAD -o /tmp/BibleMaxxing-friend-handoff-$(git rev-parse --short HEAD).zip`.
+- Open `ios/BibleMaxxing.xcodeproj` in Xcode, select the friend's paid Apple
+  Developer team, and use a bundle identifier owned by that team. If the bundle
+  id changes from `com.ryanamiri.biblemaxxing`, rebuild and retest YouTube
+  playback, source links, auth, and feed loading.
+- Archive with Xcode Product > Archive, then Distribute App > App Store Connect
+  > Upload. This repo's local archive proves archiveability, but it is signed
+  with Ryan's Apple Development identity and is not an App Store distribution
+  upload.
+- Enter App Store Connect metadata, privacy answers, age rating, screenshots,
+  review notes, and the demo-account password manually. Never commit App Store
+  Connect credentials, Apple credentials, certificates, provisioning profiles,
+  or the demo-account password.
+- Keep the visible Sign in with Apple button hidden unless the backend Apple
+  credential exchange is fully configured and verified for the publisher's
+  Apple team.
+- Preserve the YouTube embed-only posture: do not add video downloading,
+  caching, offline playback, camera-roll saves, or hidden source attribution.
+- Preserve public legal/support URLs under
+  `https://api.tailortom.org/biblemaxxing/{privacy,terms,community,support}`.
+- Before submission, rerun at least the friend-publishing checks in
+  `docs/app-store-friend-publishing.md` and the infinite-scroll verifier:
+  `python3 scripts/verify_infinite_scroll.py --base-url https://api.tailortom.org/biblemaxxing`.
+
 ## Current Stack Decisions
 
 - iOS app: native SwiftUI.
