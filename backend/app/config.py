@@ -18,6 +18,15 @@ class Settings(BaseSettings):
         "gospel encouragement shorts|Christian workplace faith shorts|"
         "Bible study shorts Jesus|worship shorts Christian|Christian testimony shorts"
     )
+    youtube_ingest_pastor_queries: str = (
+        "Philip Anthony Mitchell sermon clips|2819 Church Philip Anthony Mitchell shorts|"
+        "Bryce Crawford Christian shorts|Bryce Crawford sermon clips|"
+        "Cliffe Knechtle shorts|Give Me An Answer Cliffe Knechtle shorts|"
+        "Tim Mackie BibleProject shorts|Gavin Ortlund Truth Unites clips|"
+        "John Piper sermon clips|Tim Keller sermon clips|David Platt sermon clips|"
+        "Matt Chandler sermon clips"
+    )
+    youtube_ingest_pastor_queries_per_cycle: int = 2
     youtube_ingest_max_results: int = 25
     youtube_ingest_interval_seconds: int = 60 * 60 * 2
     youtube_ingest_default_approve: bool = True
@@ -33,6 +42,14 @@ class Settings(BaseSettings):
     @property
     def youtube_ingest_query_list(self) -> list[str]:
         return [query.strip() for query in self.youtube_ingest_queries.split("|") if query.strip()]
+
+    @property
+    def youtube_ingest_pastor_query_list(self) -> list[str]:
+        return [
+            query.strip()
+            for query in self.youtube_ingest_pastor_queries.split("|")
+            if query.strip()
+        ]
 
 
 @lru_cache

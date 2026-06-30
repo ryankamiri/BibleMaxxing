@@ -7,6 +7,7 @@ from app import models
 from app.schemas import ReflectionCard, YouTubeCandidate
 
 CHRISTIAN_KEYWORDS = {
+    "acts",
     "bible",
     "jesus",
     "christ",
@@ -15,14 +16,48 @@ CHRISTIAN_KEYWORDS = {
     "prayer",
     "christian",
     "god",
+    "grace",
     "holy spirit",
+    "lord",
     "sermon",
     "worship",
     "discipleship",
+    "faith",
+    "pastor",
+    "preach",
+    "preaching",
     "proverbs",
     "psalm",
+    "repent",
+    "repentance",
     "romans",
+    "salvation",
+    "sin",
+    "church",
+    "cross",
     "john",
+}
+
+ALIGNED_SOURCE_TOPICS = {
+    "2819 church": "philip-anthony-mitchell",
+    "philip anthony mitchell": "philip-anthony-mitchell",
+    "bryce crawford": "bryce-crawford",
+    "bryce crawford podcast": "bryce-crawford",
+    "cliffe knechtle": "cliffe-knechtle",
+    "stuart knechtle": "cliffe-knechtle",
+    "give me an answer": "cliffe-knechtle",
+    "askcliffe": "cliffe-knechtle",
+    "bibleproject": "bibleproject",
+    "tim mackie": "tim-mackie",
+    "gavin ortlund": "gavin-ortlund",
+    "truth unites": "gavin-ortlund",
+    "john piper": "john-piper",
+    "desiring god": "john-piper",
+    "tim keller": "tim-keller",
+    "gospel in life": "tim-keller",
+    "david platt": "david-platt",
+    "matt chandler": "matt-chandler",
+    "the village church": "matt-chandler",
 }
 
 EXCLUDED_KEYWORDS = {
@@ -74,12 +109,31 @@ def slugify(value: str) -> str:
 
 
 def classify_candidate(candidate: YouTubeCandidate) -> tuple[bool, list[str], float, float]:
-    text = f"{candidate.title} {candidate.description} {' '.join(candidate.tags)}".lower()
+    text = (
+        f"{candidate.title} {candidate.description} {candidate.channel_title} "
+        f"{' '.join(candidate.tags)}"
+    ).lower()
     matched = sorted(keyword for keyword in CHRISTIAN_KEYWORDS if keyword in text)
+    source_matches = sorted(keyword for keyword in ALIGNED_SOURCE_TOPICS if keyword in text)
     excluded = any(keyword in text for keyword in EXCLUDED_KEYWORDS)
-    spiritual_score = min(1.0, 0.35 + len(matched) * 0.08)
-    theology_score = 0.2 if excluded else min(1.0, 0.55 + len(matched) * 0.04)
-    return bool(matched) and not excluded, matched[:8], spiritual_score, theology_score
+    spiritual_score = min(1.0, 0.35 + len(matched) * 0.08 + len(source_matches) * 0.06)
+    theology_score = (
+        0.2
+        if excluded
+        else min(1.0, 0.55 + len(matched) * 0.04 + len(source_matches) * 0.03)
+    )
+
+    topics = matched[:8]
+    if source_matches:
+        source_topics = sorted({ALIGNED_SOURCE_TOPICS[source] for source in source_matches})
+        topics = sorted(set(topics + ["pastor-clips", *source_topics]))[:8]
+
+    return (
+        (bool(matched) or bool(source_matches)) and not excluded,
+        topics,
+        spiritual_score,
+        theology_score,
+    )
 
 
 def upsert_youtube_candidates(

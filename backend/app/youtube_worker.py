@@ -5,11 +5,37 @@ import logging
 import time
 
 from app import services
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.database import SessionLocal
 from app.youtube import YouTubeAPIError, fetch_candidates
 
 logger = logging.getLogger("biblemaxxing.youtube_worker")
+
+
+def rotating_query_batch(queries: list[str], cursor: int, count: int) -> tuple[list[str], int]:
+    if not queries or count <= 0:
+        return [], cursor
+
+    batch_size = min(count, len(queries))
+    normalized_cursor = cursor % len(queries)
+    batch = [queries[(normalized_cursor + offset) % len(queries)] for offset in range(batch_size)]
+    return batch, (normalized_cursor + batch_size) % len(queries)
+
+
+def build_ingest_query_plan(
+    settings: Settings,
+    override_queries: list[str] | None = None,
+    pastor_query_cursor: int = 0,
+) -> tuple[list[str], int]:
+    if override_queries:
+        return override_queries, pastor_query_cursor
+
+    pastor_queries, next_cursor = rotating_query_batch(
+        settings.youtube_ingest_pastor_query_list,
+        pastor_query_cursor,
+        settings.youtube_ingest_pastor_queries_per_cycle,
+    )
+    return [*settings.youtube_ingest_query_list, *pastor_queries], next_cursor
 
 
 def ingest_once(
@@ -61,9 +87,15 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = get_settings()
     interval = settings.youtube_ingest_interval_seconds
+    pastor_query_cursor = 0
 
     while True:
-        ingest_once(queries=args.query, max_results=args.max_results)
+        query_plan, pastor_query_cursor = build_ingest_query_plan(
+            settings,
+            override_queries=args.query,
+            pastor_query_cursor=pastor_query_cursor,
+        )
+        ingest_once(queries=query_plan, max_results=args.max_results)
         if args.once:
             return 0
         logger.info("sleeping %s seconds before next ingestion cycle", interval)

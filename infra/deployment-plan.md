@@ -102,8 +102,9 @@ Record:
    is intentionally internal and cannot resolve/reach YouTube.
 
    A 7200-second cadence is free in dollars but not free in YouTube Data API
-   quota. With the current 10-query set, each full cycle uses 10 `search.list`
-   calls. Track quota before relying on this cadence for continuous production
+   quota. With the current 10 broad queries plus the default 2 rotating
+   pastor/sermon-clip queries, each full cycle uses 12 `search.list` calls.
+   Track quota before relying on this cadence for continuous production
    ingestion.
 
 6. Back up TailorTom Caddy before editing:

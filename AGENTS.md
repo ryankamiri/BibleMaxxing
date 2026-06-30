@@ -25,6 +25,10 @@ For the overnight build contract, read `goal.md` after this file. It contains th
 - Commit only coherent milestones. Do not commit secrets, local env files, generated junk, or broken half-edits unless the commit message clearly marks a WIP checkpoint that Ryan requested.
 - Prefer small, reviewable commits with clear messages.
 - Before pushing, inspect `git status --short` and avoid bundling unrelated user changes.
+- The Xcode `project.pbxproj` is versioned and should not be gitignored. Ryan's
+  Apple development team ID may be committed for this personal sideloaded
+  prototype so agents can rebuild/install on his phone without reconfiguring
+  signing. Never commit certificates, provisioning profiles, or xcuserdata.
 - If a long-running `/goal` is active, keep a short progress trail through commits, docs, or a progress log so resumed agents can understand what was verified.
 - Use subagents aggressively for parallel research, implementation, QA, and deployment work, but the CTO agent owns final integration, verification, and product judgment.
 - Subagents must read all relevant `AGENTS.md` files before touching their assigned area and must update those files when their changes alter architecture or behavior.
@@ -47,6 +51,11 @@ The v1 content source is YouTube Shorts-style videos via official YouTube APIs a
 Allowed:
 
 - Use YouTube Data API to discover and store video metadata.
+- Include a rotating pastor/sermon-clip ingestion lane in addition to broad
+  Christian Shorts discovery. Prioritize sources aligned with Ryan's profile,
+  including Philip Anthony Mitchell / 2819 Church, Bryce Crawford, Cliffe
+  Knechtle / Give Me An Answer, Tim Mackie / BibleProject, Gavin Ortlund, John
+  Piper, Tim Keller, David Platt, and Matt Chandler.
 - Store `youtube_video_id`, title, description, channel, thumbnails, duration, tags, topic scores, embeddings, ranking features, moderation status, and source URLs.
 - Play YouTube videos through the official embedded player in the app.
 - Prefetch metadata, thumbnails, feed candidates, ranking results, and next-player shells.

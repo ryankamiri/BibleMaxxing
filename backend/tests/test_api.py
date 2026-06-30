@@ -5,10 +5,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.config import Settings
 from app.database import Base, get_db
 from app.main import app
-from app.services import reel_fit_score
+from app.schemas import YouTubeCandidate
+from app.services import classify_candidate, reel_fit_score
 from app.youtube import parse_datetime, parse_duration
+from app.youtube_worker import build_ingest_query_plan
 
 engine = create_engine(
     "sqlite://",
@@ -100,6 +103,51 @@ def test_reel_fit_prefers_shorts_without_banning_landscape() -> None:
 
     assert vertical_hint > useful_landscape
     assert useful_landscape > 0
+
+
+def test_pastor_clip_source_can_pass_christian_filter() -> None:
+    candidate = YouTubeCandidate(
+        youtube_video_id="pastorclip1",
+        title="The True Church | Acts 2:42-47 | Philip Anthony Mitchell",
+        description="A sermon clip from a Bible-centered message.",
+        channel_id="channel-2819",
+        channel_title="2819 Church",
+        duration_seconds=59,
+        tags=[],
+    )
+
+    approved, topics, spiritual_score, theology_score = classify_candidate(candidate)
+
+    assert approved is True
+    assert "pastor-clips" in topics
+    assert "philip-anthony-mitchell" in topics
+    assert spiritual_score > 0.5
+    assert theology_score > 0.6
+
+
+def test_worker_rotates_pastor_queries_without_overriding_manual_queries() -> None:
+    settings = Settings(
+        _env_file=None,
+        youtube_ingest_queries="general one|general two",
+        youtube_ingest_pastor_queries="pastor one|pastor two|pastor three",
+        youtube_ingest_pastor_queries_per_cycle=2,
+    )
+
+    queries, cursor = build_ingest_query_plan(settings, pastor_query_cursor=0)
+    assert queries == ["general one", "general two", "pastor one", "pastor two"]
+    assert cursor == 2
+
+    next_queries, next_cursor = build_ingest_query_plan(settings, pastor_query_cursor=cursor)
+    assert next_queries == ["general one", "general two", "pastor three", "pastor one"]
+    assert next_cursor == 1
+
+    manual_queries, manual_cursor = build_ingest_query_plan(
+        settings,
+        override_queries=["manual only"],
+        pastor_query_cursor=cursor,
+    )
+    assert manual_queries == ["manual only"]
+    assert manual_cursor == cursor
 
 
 def test_auth_onboarding_feed_and_interactions() -> None:

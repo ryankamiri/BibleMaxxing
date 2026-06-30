@@ -48,6 +48,11 @@ Model at least:
 - V1 ingestion is YouTube metadata only.
 - Use official YouTube APIs.
 - Store metadata, thumbnails, IDs, source URLs, duration, tags, descriptions, channel data, and ranking/moderation fields.
+- The `youtube-worker` runs broad Christian Shorts queries plus a rotating
+  pastor/sermon-clip query lane. Keep the pastor list Protestant-first and
+  aligned with Ryan's belief profile; current named examples include Philip
+  Anthony Mitchell / 2819 Church, Bryce Crawford, and Cliffe Knechtle / Give Me
+  An Answer.
 - Do not download, cache, store, transcode, or serve YouTube audiovisual content.
 - Keep the player iframe passive (`pointer-events: none`) and disable YouTube
   embed controls (`controls: 0`) so mobile feed taps do not surface native
@@ -73,6 +78,7 @@ Use:
 
 - theological safety
 - spiritual usefulness
+- aligned pastor/source signals
 - onboarding topics
 - follows
 - likes
