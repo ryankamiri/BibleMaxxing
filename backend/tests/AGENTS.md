@@ -15,3 +15,7 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
   watch-time influence, and feedback validation through API-visible behavior.
   Include cases where one preacher/source appears across multiple repost
   channels, because channel diversity alone is not enough.
+- Eval tests should prove scorecards pass high-quality diverse feeds and fail
+  the failures BibleMaxxing cares about: repeated source dominance, red-flag
+  ingestion auto-approval, duplicate-heavy candidate batches, and missing query
+  lanes.

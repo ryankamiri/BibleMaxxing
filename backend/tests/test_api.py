@@ -5,14 +5,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import models
+from app import evals, models
 from app.config import Settings
 from app.database import Base, get_db
 from app.main import app
 from app.schemas import YouTubeCandidate
 from app.services import TRUSTED_INFLUENCER_TOPIC, classify_candidate, ranking_score, reel_fit_score
-from app.youtube import parse_datetime, parse_duration
-from app.youtube_worker import build_ingest_query_plan
+from app.youtube import YouTubeAPIError, parse_datetime, parse_duration
+from app.youtube_worker import build_ingest_query_plan, should_stop_cycle_for_youtube_error
 
 engine = create_engine(
     "sqlite://",
@@ -452,6 +452,131 @@ def test_feed_limits_same_preacher_across_repost_channels() -> None:
     )
 
 
+def test_recommendation_eval_flags_single_source_dominance() -> None:
+    philip_creator = models.Creator(
+        id="philip-eval-creator",
+        handle="@philip-eval",
+        display_name="Philip Eval",
+        youtube_channel_id="channel-philip-eval",
+    )
+    other_creator = models.Creator(
+        id="other-eval-creator",
+        handle="@other-eval",
+        display_name="Other Eval",
+        youtube_channel_id="channel-other-eval",
+    )
+    videos = [
+        models.Video(
+            id=f"philip-eval-{index}",
+            creator_id=philip_creator.id,
+            creator=philip_creator,
+            youtube_video_id=f"philip-eval-{index}",
+            title=f"Philip clip {index}",
+            description="A sermon clip.",
+            source_url=f"https://www.youtube.com/shorts/philip-eval-{index}",
+            embed_url=f"https://www.youtube.com/embed/philip-eval-{index}",
+            duration_seconds=59,
+            tags=[],
+            topics=["trusted-influencer", "pastor-clips", "philip-anthony-mitchell"],
+            spiritual_score=0.9,
+            theology_score=0.9,
+            entertainment_score=0.7,
+            freshness_score=0.7,
+        )
+        for index in range(5)
+    ]
+    videos.append(
+        models.Video(
+            id="other-eval-1",
+            creator_id=other_creator.id,
+            creator=other_creator,
+            youtube_video_id="other-eval-1",
+            title="Other faithful clip",
+            description="A Bible clip.",
+            source_url="https://www.youtube.com/shorts/other-eval-1",
+            embed_url="https://www.youtube.com/embed/other-eval-1",
+            duration_seconds=59,
+            tags=[],
+            topics=["discipleship"],
+            spiritual_score=0.9,
+            theology_score=0.9,
+            entertainment_score=0.7,
+            freshness_score=0.7,
+        )
+    )
+
+    scorecard = evals.evaluate_recommendation_feed(videos, limit=6)
+
+    assert scorecard.status == "regressed"
+    assert scorecard.gates["source_not_dominant"] is False
+    assert scorecard.metrics["max_source_share"] > 0.35
+
+
+def test_recommendation_eval_scores_diverse_high_quality_feed_healthy() -> None:
+    videos = []
+    for index, topic in enumerate(
+        ["prayer", "discipleship", "bible", "workplace", "apologetics", "worship"], start=1
+    ):
+        creator = models.Creator(
+            id=f"eval-creator-{index}",
+            handle=f"@eval-{index}",
+            display_name=f"Eval Creator {index}",
+            youtube_channel_id=f"channel-eval-{index}",
+        )
+        videos.append(
+            models.Video(
+                id=f"eval-video-{index}",
+                creator_id=creator.id,
+                creator=creator,
+                youtube_video_id=f"eval-video-{index}",
+                title=f"Faithful {topic} short #shorts",
+                description="Bible-centered Christian encouragement.",
+                source_url=f"https://www.youtube.com/shorts/eval-video-{index}",
+                embed_url=f"https://www.youtube.com/embed/eval-video-{index}",
+                duration_seconds=58,
+                tags=[topic],
+                topics=[topic],
+                spiritual_score=0.9,
+                theology_score=0.9,
+                entertainment_score=0.7,
+                freshness_score=0.7,
+            )
+        )
+
+    scorecard = evals.evaluate_recommendation_feed(videos, limit=6)
+
+    assert scorecard.status == "healthy"
+    assert scorecard.metrics["creator_coverage"] == 1
+    assert all(scorecard.gates.values())
+
+
+def test_ingest_eval_rejects_red_team_heretical_fixtures() -> None:
+    scorecard = evals.evaluate_red_team_ingestion()
+
+    assert scorecard.gates["no_red_flag_auto_approved"] is True
+    assert scorecard.metrics["red_flag_candidate_count"] == 5
+    assert scorecard.metrics["red_flag_auto_approved_count"] == 0
+    assert scorecard.metrics["accepted_new_count"] == 1
+    assert scorecard.metrics["rejected_by_filter_count"] >= 5
+
+
+def test_query_plan_eval_requires_broad_and_pastor_lanes() -> None:
+    settings = Settings(
+        _env_file=None,
+        youtube_ingest_queries="general one|general two",
+        youtube_ingest_pastor_queries="pastor one|pastor two",
+        youtube_ingest_pastor_queries_per_cycle=1,
+    )
+
+    healthy = evals.evaluate_query_plan(settings, ["general one", "general two", "pastor one"])
+    missing_pastor = evals.evaluate_query_plan(settings, ["general one", "general two"])
+
+    assert healthy.gates["has_broad_discovery_lane"] is True
+    assert healthy.gates["has_pastor_source_lane"] is True
+    assert missing_pastor.status == "regressed"
+    assert missing_pastor.gates["has_pastor_source_lane"] is False
+
+
 def test_negative_feedback_downranks_related_videos_without_affecting_other_users() -> None:
     token, _ = register_user("negative@example.com")
     other_token, _ = register_user("other-negative@example.com")
@@ -669,6 +794,18 @@ def test_worker_rotates_pastor_queries_without_overriding_manual_queries() -> No
     assert manual_cursor == cursor
 
 
+def test_worker_stops_current_cycle_on_youtube_quota_errors() -> None:
+    quota_error = YouTubeAPIError(
+        "YouTube API search failed with 429: quota exceeded",
+        status_code=429,
+        body="Quota exceeded for quota metric Search Queries",
+    )
+    transient_error = YouTubeAPIError("temporary YouTube error", status_code=500)
+
+    assert should_stop_cycle_for_youtube_error(quota_error) is True
+    assert should_stop_cycle_for_youtube_error(transient_error) is False
+
+
 def test_auth_onboarding_feed_and_interactions() -> None:
     token, user = register_user()
     assert user["is_admin"] is True
@@ -699,6 +836,20 @@ def test_auth_onboarding_feed_and_interactions() -> None:
     video_item = next(item for item in items if item["type"] == "video")
     video_id = video_item["video"]["id"]
     creator_id = video_item["video"]["creator"]["id"]
+
+    recommendation_eval = client.get(
+        "/biblemaxxing/api/v1/admin/evals/recommendations?limit=3",
+        headers=auth_headers(token),
+    )
+    assert recommendation_eval.status_code == 200, recommendation_eval.text
+    assert recommendation_eval.json()["metrics"]["feed_count"] >= 1
+
+    red_team_eval = client.get(
+        "/biblemaxxing/api/v1/admin/evals/ingest/red-team",
+        headers=auth_headers(token),
+    )
+    assert red_team_eval.status_code == 200, red_team_eval.text
+    assert red_team_eval.json()["metrics"]["red_flag_auto_approved_count"] == 0
 
     assert (
         client.post(

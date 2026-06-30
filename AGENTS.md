@@ -41,6 +41,10 @@ For the overnight build contract, read `goal.md` after this file. It contains th
 - Database: Postgres.
 - ORM: SQLAlchemy 2.0 with Alembic migrations and Pydantic schemas. Do not switch to SQLModel unless Ryan explicitly reverses this decision.
 - Recommendation data: start with Postgres tables and local/simple embeddings where practical; keep the schema compatible with `pgvector` later.
+- Eval system: use backend scorecards for recommendation/feed quality and
+  YouTube ingestion quality before claiming the algorithm improved. Compare
+  scorecards against a saved JSON baseline to label changes as improving,
+  baselining, or regressing.
 - Deployment target: TailorTom VPS at `ssh tailortom`, reachable through `https://api.tailortom.org/biblemaxxing`.
 - Deployment shape: add a separate BibleMaxxing backend route/container. Do not disrupt the existing TailorTom API currently routed at `api.tailortom.org`.
 
@@ -124,6 +128,11 @@ seen-history exclusions before ranking candidates.
 Video format is a preference signal, not a hard exclusion. Boost Shorts-like,
 screen-filling candidates when metadata suggests it, while keeping landscape
 videos eligible if they score well on spiritual usefulness and safety.
+
+Run recommendation and ingestion evals when changing ranking, filtering,
+trusted influencer logic, YouTube worker cadence, or query configuration. The
+canonical eval contract is `docs/recommendation-ingestion-evals.md`, and the
+CLI entry point is `scripts/run_evals.py`.
 
 ## Theology And Content Fit
 

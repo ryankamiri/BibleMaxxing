@@ -90,6 +90,8 @@ EXCLUDED_KEYWORDS = {
     "jehovah",
     "watchtower",
     "oneness",
+    "sda",
+    "seventh-day adventist",
     "prosperity gospel",
     "manifestation",
     "law of attraction",

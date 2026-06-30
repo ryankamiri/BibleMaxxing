@@ -121,6 +121,17 @@ Newly generated feeds should not show already-seen videos. Exclude videos with
 prior impressions, watch events, likes, saves, or not-interested rows for that
 user before ranking the candidate pool.
 
+Recommendation changes must keep the eval scorecards in `app/evals.py` current.
+Use those scorecards to test feed quality, source diversity, and personalization
+instead of relying only on eyeballing the app. Scorecard comparison against a
+saved JSON baseline is the accepted way to call a change improving, baselining,
+or regressing.
+
+YouTube ingestion changes must evaluate candidate quality before write: useful
+new rate, duplicate waste, trusted-source discovery, red-flag auto-approval,
+and query-lane coverage. The worker should keep logging eval summaries for
+default cycles.
+
 ## Moderation
 
 - Comments are part of v1 and must be reportable.

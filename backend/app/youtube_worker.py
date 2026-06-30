@@ -4,7 +4,7 @@ import argparse
 import logging
 import time
 
-from app import services
+from app import evals, services
 from app.config import Settings, get_settings
 from app.database import SessionLocal
 from app.youtube import YouTubeAPIError, fetch_candidates
@@ -38,6 +38,11 @@ def build_ingest_query_plan(
     return [*settings.youtube_ingest_query_list, *pastor_queries], next_cursor
 
 
+def should_stop_cycle_for_youtube_error(exc: YouTubeAPIError) -> bool:
+    message = f"{exc} {exc.body}".lower()
+    return exc.status_code in {403, 429} and "quota" in message
+
+
 def ingest_once(
     queries: list[str] | None = None, max_results: int | None = None
 ) -> tuple[int, int]:
@@ -53,11 +58,19 @@ def ingest_once(
     for query in query_list:
         try:
             candidates = fetch_candidates(settings.youtube_api_key, query, per_query_limit)
-        except YouTubeAPIError:
+        except YouTubeAPIError as exc:
             logger.exception("YouTube metadata fetch failed", extra={"query": query})
+            if should_stop_cycle_for_youtube_error(exc):
+                logger.warning("stopping ingestion cycle early because YouTube quota is exhausted")
+                break
             continue
 
         with SessionLocal() as db:
+            candidate_eval = evals.evaluate_ingest_candidates(
+                candidates,
+                query=query,
+                existing_youtube_ids=evals.existing_youtube_ids_for_candidates(db, candidates),
+            )
             created, skipped = services.upsert_youtube_candidates(
                 db,
                 candidates,
@@ -71,6 +84,18 @@ def ingest_once(
             len(candidates),
             created,
             skipped,
+        )
+        logger.info(
+            "ingest eval query=%r status=%s score=%.1f accepted_new=%s rejected=%s "
+            "duplicates=%s trusted=%s red_flag_auto_approved=%s",
+            query,
+            candidate_eval.status,
+            candidate_eval.overall_score,
+            candidate_eval.metrics["accepted_new_count"],
+            candidate_eval.metrics["rejected_by_filter_count"],
+            candidate_eval.metrics["duplicate_count"],
+            candidate_eval.metrics["trusted_influencer_candidate_count"],
+            candidate_eval.metrics["red_flag_auto_approved_count"],
         )
 
     logger.info("ingestion cycle complete created=%s skipped=%s", total_created, total_skipped)
@@ -95,6 +120,17 @@ def main() -> int:
             override_queries=args.query,
             pastor_query_cursor=pastor_query_cursor,
         )
+        if not args.query:
+            query_plan_eval = evals.evaluate_query_plan(settings, query_plan)
+            logger.info(
+                "ingest query-plan eval status=%s score=%.1f broad_queries=%s "
+                "pastor_queries=%s duplicates=%s",
+                query_plan_eval.status,
+                query_plan_eval.overall_score,
+                query_plan_eval.metrics["broad_query_count"],
+                query_plan_eval.metrics["pastor_query_count"],
+                query_plan_eval.metrics["duplicate_query_count"],
+            )
         ingest_once(queries=query_plan, max_results=args.max_results)
         if args.once:
             return 0

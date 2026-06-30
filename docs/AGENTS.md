@@ -29,6 +29,8 @@ Maintain docs for:
 - `youtube-embed-policy.md` is the source-of-truth for YouTube allowed and forbidden behavior.
 - `app-store-compliance.md` tracks App Store and TestFlight readiness.
 - `moderation-account-deletion.md` tracks moderation, reports, blocks, and account deletion behavior.
+- `recommendation-ingestion-evals.md` tracks recommender/worker eval scorecards,
+  gates, baseline comparison semantics, and run commands.
 - `qa-checklist.md` tracks final CTO verification steps.
 - `verification-log.md` records commands and live deployment evidence from completed checkpoints.
 

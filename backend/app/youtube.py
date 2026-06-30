@@ -14,7 +14,10 @@ API_BASE = "https://www.googleapis.com/youtube/v3"
 
 
 class YouTubeAPIError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None, body: str = "") -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
 
 
 def request_json(path: str, params: dict[str, str | int]) -> dict[str, Any]:
@@ -24,7 +27,11 @@ def request_json(path: str, params: dict[str, str | int]) -> dict[str, Any]:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise YouTubeAPIError(f"YouTube API {path} failed with {exc.code}: {body[:400]}") from exc
+        raise YouTubeAPIError(
+            f"YouTube API {path} failed with {exc.code}: {body[:400]}",
+            status_code=exc.code,
+            body=body,
+        ) from exc
     except urllib.error.URLError as exc:
         raise YouTubeAPIError(f"YouTube API {path} request failed: {exc.reason}") from exc
 

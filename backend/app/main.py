@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app import models, schemas, services
+from app import evals, models, schemas, services
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.security import create_access_token, decode_access_token, hash_password, verify_password
@@ -839,6 +839,43 @@ def ingest_sample(
 ) -> schemas.IngestResponse:
     created, skipped = services.seed_sample_inventory(db)
     return schemas.IngestResponse(created=created, skipped=skipped)
+
+
+@app.get(f"{API_PREFIX}/admin/evals/recommendations")
+def admin_recommendation_eval(
+    user_id: str | None = None,
+    user_email: str | None = Query(default=None, alias="email"),
+    limit: int = Query(default=30, ge=1, le=50),
+    admin: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    target_user = admin
+    if user_id:
+        target_user = db.get(models.User, user_id)
+    elif user_email:
+        target_user = db.scalar(select(models.User).where(models.User.email == user_email))
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return evals.evaluate_recommendations_for_user(db, target_user, limit=limit).to_dict()
+
+
+@app.post(f"{API_PREFIX}/admin/evals/ingest/candidates")
+def admin_ingest_candidate_eval(
+    payload: schemas.IngestRequest,
+    _: models.User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    existing_ids = evals.existing_youtube_ids_for_candidates(db, payload.candidates)
+    return evals.evaluate_ingest_candidates(
+        payload.candidates,
+        query="admin-candidate-eval",
+        existing_youtube_ids=existing_ids,
+    ).to_dict()
+
+
+@app.get(f"{API_PREFIX}/admin/evals/ingest/red-team")
+def admin_red_team_ingest_eval(_: models.User = Depends(require_admin)) -> dict:
+    return evals.evaluate_red_team_ingestion().to_dict()
 
 
 @app.get(f"{API_PREFIX}/admin/reports", response_model=list[schemas.ReportPublic])

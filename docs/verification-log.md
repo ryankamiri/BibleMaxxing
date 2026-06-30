@@ -90,6 +90,44 @@ Reviewed: 2026-06-30
 - Old placeholder sample rows are hidden in production.
 - Production user `ryanamiri05@gmail.com` exists and has `is_admin = true`.
 
+## Eval System Deployment
+
+- At `2026-06-30 17:08:58 UTC`, after deploying backend recommendation and
+  ingestion eval scorecards, both health routes returned healthy:
+  - `https://api.tailortom.org/biblemaxxing/health`:
+    `{"ok":true,"service":"biblemaxxing","env":"production"}`
+  - `https://api.tailortom.org/health`: `{"status":"healthy"}`
+- Local verification after the eval changes:
+  - `backend/.venv/bin/python -m ruff check backend scripts/run_evals.py`
+    passed.
+  - `backend/.venv/bin/python -m pytest backend/tests` passed with
+    `21 passed, 4 warnings`.
+  - `scripts/run_evals.py --limit 12`, followed by a saved-baseline comparison,
+    reported `baselining` for recommendation, ingest query plan, and ingest
+    red-team scorecards.
+- Production eval sample for `ryanamiri05@gmail.com` after the final deploy:
+  - recommendation status: `healthy`
+  - recommendation score: `91.54`
+  - feed count: `30`
+  - creator coverage: `1.0`
+  - max creator share: `0.0333`
+  - max aligned source share: `0.1`
+  - consecutive source repeats: `0`
+  - average theology score: `0.8287`
+- Production ingestion eval sample:
+  - query plan status: `healthy`, score `100.0`
+  - query count: `12`
+  - broad query count: `10`
+  - pastor query count: `2`
+  - duplicate query count: `0`
+  - red-team status: `baseline`, score `72.16`
+  - red-flag auto-approved count: `0`
+- The production YouTube worker is currently quota-limited by YouTube Search
+  Queries for the day. After the quota-aware worker patch, the restarted worker
+  logged one query-plan eval, encountered one `429` quota error, stopped the
+  current cycle early, and slept for `7200` seconds instead of continuing to
+  hit later queries.
+
 ## Remaining Manual Checks
 
 - Verify YouTube playback manually on Ryan's iPhone after the installed player

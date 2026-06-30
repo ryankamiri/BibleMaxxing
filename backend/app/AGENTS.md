@@ -15,6 +15,8 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
 - The Docker `youtube-worker` service runs `python -m app.youtube_worker`.
 - `youtube_worker.py` should keep the pastor/sermon-clip lane rotating through
   configured source queries instead of replacing the broad discovery queries.
+- If YouTube returns quota-exhausted errors, stop the current worker cycle early
+  and sleep until the next interval instead of repeatedly hitting later queries.
 - `services.classify_candidate` may use source-aware boosts for explicitly
   aligned pastor/channel names, but broad or ambiguous words should not become
   automatic approval signals.
@@ -29,6 +31,9 @@ Read `../AGENTS.md` and the root `AGENTS.md` before editing.
   invariant so trusted creators can appear often without monopolizing the feed.
   It should cap repeated source/person keys such as `philip-anthony-mitchell`
   across repost channels, not only repeated `creator_id` rows.
+- `evals.py` owns scorecards for recommendation quality, YouTube candidate
+  quality, red-team ingestion fixtures, query-plan coverage, and baseline
+  comparison. Update it when ranking or ingestion semantics change.
 - Positive feedback endpoints should validate that the target video exists
   before returning success, so the app never believes it trained the recommender
   on a missing video.
